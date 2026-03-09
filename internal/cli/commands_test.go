@@ -61,7 +61,7 @@ func TestBuild_Integration(t *testing.T) {
 
 	// Run Build
 	reporter := report.NewReporter(report.TextFormat)
-	err := Build(reporter)
+	err := Build(reporter, false)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
@@ -71,6 +71,44 @@ func TestBuild_Integration(t *testing.T) {
 	archivePath := filepath.Join("dist", archiveName)
 	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
 		t.Errorf("archive %s not created", archivePath)
+	}
+}
+
+func TestBuild_DryRun_Integration(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origWd)
+
+	// Setup minimal valid project
+	cfg := config.Default()
+	cfg.Module.ID = "test.dryrun"
+	cfg.Module.Version = "1.0.0"
+	cfg.Build.OutputDir = "./dist"
+
+	if err := os.Mkdir("install", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run Build with dry-run
+	reporter := report.NewReporter(report.TextFormat)
+	err := Build(reporter, true)
+	if err != nil {
+		t.Fatalf("Build dry-run failed: %v", err)
+	}
+
+	// Verify no output
+	archiveName := "test.dryrun-1.0.0.zip"
+	archivePath := filepath.Join("dist", archiveName)
+	if _, err := os.Stat(archivePath); err == nil {
+		t.Errorf("archive %s should NOT be created in dry-run", archivePath)
+	}
+
+	if _, err := os.Stat("./.bxpack/staging"); err == nil {
+		t.Error("staging directory should NOT be created in dry-run")
 	}
 }
 

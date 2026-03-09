@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"bx-pack/internal/config"
 	"bx-pack/internal/validate"
 )
 
@@ -23,6 +24,7 @@ type Reporter interface {
 	PrintConfigError(err error) error
 	PrintSuccess(msg string) error
 	PrintInfo(msg string) error
+	PrintDryRunPlan(cfg config.Config, archivePath string) error
 	Finalize() error
 }
 
@@ -79,6 +81,25 @@ func (r *textReporter) PrintSuccess(msg string) error {
 
 func (r *textReporter) PrintInfo(msg string) error {
 	fmt.Fprintf(r.w, "%s\n", msg)
+	return nil
+}
+
+func (r *textReporter) PrintDryRunPlan(cfg config.Config, archivePath string) error {
+	fmt.Fprintln(r.w, "\n--- ПЛАН СБОРКИ (DRY RUN) ---")
+	fmt.Fprintf(r.w, "Модуль:      %s (версия %s)\n", cfg.Module.ID, cfg.Module.Version)
+	fmt.Fprintf(r.w, "Исходники:   %s\n", cfg.Build.SourceDir)
+	fmt.Fprintf(r.w, "Staging:     %s\n", cfg.Build.StagingDir)
+	fmt.Fprintf(r.w, "Output:      %s\n", cfg.Build.OutputDir)
+	fmt.Fprintf(r.w, "Имя архива:  %s\n", archivePath)
+
+	if len(cfg.Exclude) > 0 {
+		fmt.Fprintln(r.w, "\nИсключения:")
+		for _, exc := range cfg.Exclude {
+			fmt.Fprintf(r.w, "  - %s\n", exc)
+		}
+	}
+	fmt.Fprintln(r.w, "----------------------------")
+	fmt.Fprintln(r.w, "\nDry run завершен. Файлы не были изменены.")
 	return nil
 }
 
@@ -150,6 +171,13 @@ func (r *jsonReporter) PrintSuccess(msg string) error {
 }
 
 func (r *jsonReporter) PrintInfo(msg string) error {
+	return nil
+}
+
+func (r *jsonReporter) PrintDryRunPlan(cfg config.Config, archivePath string) error {
+	r.report.DryRun = true
+	r.report.ArchivePath = archivePath
+	r.report.Summary = "Dry run completed successfully"
 	return nil
 }
 

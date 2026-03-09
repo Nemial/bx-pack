@@ -62,7 +62,7 @@ func Validate(reporter report.Reporter) error {
 	return nil
 }
 
-func Build(reporter report.Reporter) error {
+func Build(reporter report.Reporter, dryRun bool) error {
 	reporter.SetCommand("build")
 	cfg, err := config.Load(config.DefaultConfigPath)
 	if err != nil {
@@ -70,6 +70,7 @@ func Build(reporter report.Reporter) error {
 		return err
 	}
 	cfg = config.ApplyDefaults(cfg)
+	_ = cfg.NormalizePaths()
 
 	// 1. Validate
 	issues := validate.Run(cfg)
@@ -92,6 +93,12 @@ func Build(reporter report.Reporter) error {
 		reporter.PrintIssues(issues)
 	}
 
+	archivePath := pack.GetArchivePath(cfg)
+
+	if dryRun {
+		return reporter.PrintDryRunPlan(cfg, archivePath)
+	}
+
 	// 2. Prepare staging
 	if !report.IsJSON(reporter) {
 		reporter.PrintInfo("Подготовка временной директории...")
@@ -106,7 +113,7 @@ func Build(reporter report.Reporter) error {
 	if !report.IsJSON(reporter) {
 		reporter.PrintInfo("Создание архива...")
 	}
-	archivePath, err := pack.CreateArchive(cfg)
+	archivePath, err = pack.CreateArchive(cfg)
 	if err != nil {
 		err := fmt.Errorf("создание архива: %w", err)
 		reporter.PrintConfigError(err)

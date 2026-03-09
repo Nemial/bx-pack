@@ -54,7 +54,7 @@ func TestJSONOutput_Integration(t *testing.T) {
 		var buf bytes.Buffer
 		reporter := report.NewReporterWithWriter(report.JSONFormat, &buf, &buf)
 
-		err := Build(reporter)
+		err := Build(reporter, false)
 		if err != nil {
 			t.Fatalf("Build failed: %v\nOutput: %s", err, buf.String())
 		}

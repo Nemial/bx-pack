@@ -77,6 +77,14 @@ func PrepareStaging(cfg config.Config) error {
 	})
 }
 
+func GetArchivePath(cfg config.Config) string {
+	archiveName := cfg.Build.ArchiveName
+	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
+	archiveName = strings.ReplaceAll(archiveName, "{module.version}", cfg.Module.Version)
+
+	return filepath.Join(cfg.Build.OutputDir, archiveName)
+}
+
 func CreateArchive(cfg config.Config) (string, error) {
 	// Нормализуем пути перед работой
 	if err := cfg.NormalizePaths(); err != nil {
@@ -87,11 +95,7 @@ func CreateArchive(cfg config.Config) (string, error) {
 		return "", fmt.Errorf("create output dir: %w", err)
 	}
 
-	archiveName := cfg.Build.ArchiveName
-	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
-	archiveName = strings.ReplaceAll(archiveName, "{module.version}", cfg.Module.Version)
-
-	archivePath := filepath.Join(cfg.Build.OutputDir, archiveName)
+	archivePath := GetArchivePath(cfg)
 
 	outFile, err := os.Create(archivePath)
 	if err != nil {
