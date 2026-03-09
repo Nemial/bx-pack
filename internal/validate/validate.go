@@ -118,11 +118,18 @@ func ValidateModuleID(cfg config.Config) []Issue {
 
 func ValidateModuleVersion(cfg config.Config) []Issue {
 	if cfg.Module.Version == "" {
-		return []Issue{{
-			Code:     CodeModuleVersionRequired,
-			Message:  "поле module.version обязательно для заполнения",
-			Severity: Error,
-		}}
+		// Если версия не указана в конфиге, она должна быть в install/version.php
+		versionFile := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
+		if _, err := os.Stat(versionFile); err != nil {
+			return []Issue{{
+				Code:     CodeModuleVersionRequired,
+				Message:  "поле module.version в конфиге пусто, и файл install/version.php не найден",
+				Severity: Error,
+			}}
+		}
+		// Сама валидация содержимого version.php происходит в CLI слое при попытке сборки,
+		// здесь мы только подтверждаем, что "источник версии" доступен.
+		return nil
 	}
 
 	// Для SemVer используем строгую проверку регулярным выражением

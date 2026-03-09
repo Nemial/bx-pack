@@ -49,6 +49,23 @@ func Validate(reporter report.Reporter) error {
 	}
 	cfg = config.ApplyDefaults(cfg)
 
+	// Для валидации, если версия пуста, попробуем ее распарсить чтобы убедиться что файл корректен
+	if cfg.Module.Version == "" {
+		versionPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
+		if _, err := os.Stat(versionPath); err == nil {
+			if _, err := version.ParseVersion(versionPath); err != nil {
+				// Если файл есть, но не парсится - это ошибка валидации версии
+				issues := []validate.Issue{{
+					Code:     validate.CodeModuleVersionInvalid,
+					Message:  fmt.Sprintf("ошибка парсинга версии из %s: %v", versionPath, err),
+					Severity: validate.Error,
+				}}
+				reporter.PrintIssues(issues)
+				return NewCLIError(ExitValError, fmt.Errorf("валидация завершилась с ошибками"))
+			}
+		}
+	}
+
 	issues := validate.Run(cfg)
 	if !report.IsJSON(reporter) || len(issues) > 0 {
 		reporter.PrintIssues(issues)
@@ -78,6 +95,19 @@ func Build(reporter report.Reporter, dryRun bool) error {
 		return NewCLIError(ExitConfigErr, err)
 	}
 	cfg = config.ApplyDefaults(cfg)
+
+	// Автоопределение версии, если она не указана в конфиге
+	if cfg.Module.Version == "" {
+		versionPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
+		ver, err := version.ParseVersion(versionPath)
+		if err != nil {
+			err = fmt.Errorf("автоопределение версии из %s: %w", versionPath, err)
+			reporter.PrintConfigError(err)
+			return NewCLIError(ExitValError, err)
+		}
+		cfg.Module.Version = ver
+	}
+
 	_ = cfg.NormalizePaths()
 
 	// 1. Validate
@@ -170,13 +200,28 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 		reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
+
+	// Запоминаем, была ли версия в конфиге до применения дефолтов
+	versionInConfig := cfg.Module.Version
+
 	cfg = config.ApplyDefaults(cfg)
 	path := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
 	oldVer, newVer, err := version.BumpVersion(path, cfg.Module.VersionScheme, bumpLevel)
 	if err != nil {
-		reporter.PrintConfigError(fmt.Errorf("обновление версии: %w", err))
+		reporter.PrintConfigError(fmt.Errorf("обновление версии в %s: %w", path, err))
 		return NewCLIError(ExitValError, err)
 	}
+
+	// Обновляем .bxpack.yml только если версия там была прописана
+	if versionInConfig != "" {
+		cfg.Module.Version = newVer
+		if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+			err = fmt.Errorf("обновление %s: %w", config.DefaultConfigPath, err)
+			reporter.PrintConfigError(err)
+			return NewCLIError(ExitConfigErr, err)
+		}
+	}
+
 	reporter.PrintVersionBump(oldVer, newVer)
 	return nil
 }

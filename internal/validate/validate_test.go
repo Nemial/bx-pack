@@ -16,6 +16,11 @@ func TestRun(t *testing.T) {
 		if err := os.Mkdir(installDir, 0755); err != nil {
 			t.Fatal(err)
 		}
+		// Создаем version.php для прохождения валидации, если версия в конфиге пуста
+		versionContent := `<?php $arModuleVersion = ["VERSION" => "1.0.0"]; ?>`
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(versionContent), 0644); err != nil {
+			t.Fatal(err)
+		}
 
 		cfg := config.Default()
 		cfg.Module.ID = "my.custom.id"

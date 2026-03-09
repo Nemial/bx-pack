@@ -73,6 +73,12 @@
 
 ### `version`
 
+Инструмент поддерживает работу с версией модуля, используя файл `install/version.php` как основной источник истины. Поле `module.version` в `.bxpack.yml` является необязательным и служит для переопределения (override) версии из PHP.
+
+**Логика приоритетов:**
+1. Если `module.version` указана в `.bxpack.yml` — используется это значение.
+2. Если `module.version` пуста — версия автоматически считывается из `install/version.php`.
+
 #### `show`
 
 Показывает текущую версию из файла `install/version.php`.
@@ -101,7 +107,11 @@ bx-pack version show
 
 #### `bump &lt;patch|minor|major&gt;`
 
-Инкрементирует версию согласно выбранной схеме (`versionScheme`), обновляет `VERSION_DATE` и перезаписывает файл.
+Инкрементирует версию согласно выбранной схеме (`versionScheme`), обновляет `VERSION_DATE` и перезаписывает файл `install/version.php`.
+
+**Важно:**
+- Версия в `install/version.php` обновляется всегда.
+- Версия в `.bxpack.yml` обновляется **только если она там была указана**. Если поле было пустым для автоопределения — оно останется пустым.
 
 | Схема         | patch                | minor             | major             |
 |---------------|----------------------|-------------------|-------------------|
@@ -139,7 +149,7 @@ bx-pack version bump major   # 1.0.0 → 2.0.0
 ```yaml
 module:
   id: "my.company.module"      # Уникальный ID модуля
-  version: "1.0.0"             # Версия модуля
+  version: ""                  # Версия модуля (оставьте пустым для автоопределения из install/version.php)
   versionScheme: "semver"      # Схема версионирования (semver, calver, year-semver, custom)
   name: "Мой крутой модуль"    # Название модуля
   install: "install"           # Папка с установочными скриптами
@@ -283,30 +293,30 @@ Dry run завершен. Файлы не были изменены.
 Эти коды используются в поле `findings[].Code` JSON-отчета и выводе `validate` для удобства
 CI/CD.
 
-| Код                             | Уровень | Пример сообщения                                                       |
-|---------------------------------|---------|------------------------------------------------------------------------|
-| `MODULE_ID_INVALID`             | ERROR   | module.id должен быть установлен в значение, отличное от стандартного  |
-| `MODULE_VERSION_REQUIRED`       | ERROR   | поле module.version обязательно для заполнения                         |
-| `MODULE_VERSION_INVALID`        | ERROR   | module.version не соответствует формату семантического версионирования |
-| `MODULE_NAME_REQUIRED`          | WARNING | поле module.name обязательно для заполнения                            |
-| `MODULE_INSTALL_REQUIRED`       | ERROR   | поле module.install обязательно для заполнения                         |
-| `MODULE_INSTALL_NOT_FOUND`      | ERROR   | директория установки не найдена                                        |
-| `MODULE_INSTALL_STAT_ERROR`     | WARNING | ошибка при проверке директории установки                               |
-| `MODULE_INSTALL_NOT_DIR`        | ERROR   | путь установки должен быть директорией                                 |
-| `BUILD_SOURCE_DIR_REQUIRED`     | ERROR   | поле build.sourceDir обязательно для заполнения                        |
-| `BUILD_SOURCE_DIR_NOT_FOUND`    | ERROR   | исходная директория не найдена                                         |
-| `BUILD_SOURCE_DIR_STAT_ERROR`   | WARNING | ошибка при проверке исходной директории                                |
-| `BUILD_SOURCE_DIR_NOT_DIR`      | ERROR   | исходный путь должен быть директорией                                  |
-| `BUILD_OUTPUT_DIR_REQUIRED`     | ERROR   | поле build.outputDir обязательно для заполнения                        |
-| `OUTPUT_DIR_EQUALS_SOURCE_DIR`  | ERROR   | outputDir не должен совпадать с sourceDir                              |
-| `BUILD_STAGING_DIR_REQUIRED`    | ERROR   | поле build.stagingDir обязательно для заполнения                       |
-| `STAGING_DIR_EQUALS_OUTPUT_DIR` | ERROR   | stagingDir не должен совпадать с outputDir                             |
-| `STAGING_DIR_EQUALS_SOURCE_DIR` | ERROR   | stagingDir не должен совпадать с sourceDir                             |
-| `BUILD_ARCHIVE_NAME_REQUIRED`   | ERROR   | поле build.archiveName обязательно для заполнения                      |
-| `EXCLUDE_PATTERN_EMPTY`         | WARNING | в списке exclude не должно быть пустых строк                           |
-| `FORBIDDEN_PATH_FOUND`          | WARNING | обнаружен запрещенный путь в исходниках                                |
-| `FORBIDDEN_PATH_SCAN_ERROR`     | WARNING | ошибка при сканировании запрещенных путей                              |
-| `MODULE_VERSION_SCHEME_INVALID` | ERROR   | неизвестная схема версионирования                                      |
+| Код                             | Уровень | Пример сообщения                                                          |
+|---------------------------------|---------|---------------------------------------------------------------------------|
+| `MODULE_ID_INVALID`             | ERROR   | module.id должен быть установлен в значение, отличное от стандартного     |
+| `MODULE_VERSION_REQUIRED`       | ERROR   | поле module.version в конфиге пусто, и файл install/version.php не найден |
+| `MODULE_VERSION_INVALID`        | ERROR   | module.version не соответствует формату семантического версионирования    |
+| `MODULE_NAME_REQUIRED`          | WARNING | поле module.name обязательно для заполнения                               |
+| `MODULE_INSTALL_REQUIRED`       | ERROR   | поле module.install обязательно для заполнения                            |
+| `MODULE_INSTALL_NOT_FOUND`      | ERROR   | директория установки не найдена                                           |
+| `MODULE_INSTALL_STAT_ERROR`     | WARNING | ошибка при проверке директории установки                                  |
+| `MODULE_INSTALL_NOT_DIR`        | ERROR   | путь установки должен быть директорией                                    |
+| `BUILD_SOURCE_DIR_REQUIRED`     | ERROR   | поле build.sourceDir обязательно для заполнения                           |
+| `BUILD_SOURCE_DIR_NOT_FOUND`    | ERROR   | исходная директория не найдена                                            |
+| `BUILD_SOURCE_DIR_STAT_ERROR`   | WARNING | ошибка при проверке исходной директории                                   |
+| `BUILD_SOURCE_DIR_NOT_DIR`      | ERROR   | исходный путь должен быть директорией                                     |
+| `BUILD_OUTPUT_DIR_REQUIRED`     | ERROR   | поле build.outputDir обязательно для заполнения                           |
+| `OUTPUT_DIR_EQUALS_SOURCE_DIR`  | ERROR   | outputDir не должен совпадать с sourceDir                                 |
+| `BUILD_STAGING_DIR_REQUIRED`    | ERROR   | поле build.stagingDir обязательно для заполнения                          |
+| `STAGING_DIR_EQUALS_OUTPUT_DIR` | ERROR   | stagingDir не должен совпадать с outputDir                                |
+| `STAGING_DIR_EQUALS_SOURCE_DIR` | ERROR   | stagingDir не должен совпадать с sourceDir                                |
+| `BUILD_ARCHIVE_NAME_REQUIRED`   | ERROR   | поле build.archiveName обязательно для заполнения                         |
+| `EXCLUDE_PATTERN_EMPTY`         | WARNING | в списке exclude не должно быть пустых строк                              |
+| `FORBIDDEN_PATH_FOUND`          | WARNING | обнаружен запрещенный путь в исходниках                                   |
+| `FORBIDDEN_PATH_SCAN_ERROR`     | WARNING | ошибка при сканировании запрещенных путей                                 |
+| `MODULE_VERSION_SCHEME_INVALID` | ERROR   | неизвестная схема версионирования                                         |
 
 ### Коды выхода
 

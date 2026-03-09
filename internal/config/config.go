@@ -39,9 +39,6 @@ func ApplyDefaults(cfg Config) Config {
 	if cfg.Module.ID == "" {
 		cfg.Module.ID = "example.module"
 	}
-	if cfg.Module.Version == "" {
-		cfg.Module.Version = "1.0.0"
-	}
 	if cfg.Module.VersionScheme == "" {
 		cfg.Module.VersionScheme = "semver"
 	}
@@ -136,7 +133,8 @@ module:
   id: "myvendor.my-module"
 
   # Версия модуля в формате SemVer (например, 1.0.0, 2.1.0-beta).
-  version: "0.1.0"
+  # Можно оставить пустым для автоопределения из install/version.php.
+  version: ""
 
   # Схема версионирования (semver, calver, year-semver, custom).
   # По умолчанию используется "semver".

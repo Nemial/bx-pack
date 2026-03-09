@@ -10,13 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	ExitSuccess   = 0
-	ExitError     = 1
-	ExitValError  = 2
-	ExitConfigErr = 3
-)
-
 var (
 	formatStr string
 	dryRun    bool
