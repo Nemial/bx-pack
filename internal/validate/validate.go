@@ -271,10 +271,7 @@ func ValidateBuildOutputDir(cfg config.Config) []Issue {
 		}}
 	}
 
-	absOutput, _ := filepath.Abs(cfg.Build.OutputDir)
-	absSource, _ := filepath.Abs(cfg.Build.SourceDir)
-
-	if absOutput == absSource {
+	if cfg.Build.OutputDir == cfg.Build.SourceDir {
 		return []Issue{{
 			Code:     CodeOutputDirEqualsSourceDir,
 			Message:  "outputDir не должен совпадать с sourceDir",
@@ -294,12 +291,7 @@ func ValidateBuildStagingDir(cfg config.Config) []Issue {
 		}}
 	}
 
-	// Сравниваем нормализованные пути
-	absStaging, _ := filepath.Abs(cfg.Build.StagingDir)
-	absOutput, _ := filepath.Abs(cfg.Build.OutputDir)
-	absSource, _ := filepath.Abs(cfg.Build.SourceDir)
-
-	if absStaging == absOutput {
+	if cfg.Build.StagingDir == cfg.Build.OutputDir {
 		return []Issue{{
 			Code:     CodeStagingDirEqualsOutputDir,
 			Message:  "stagingDir не должен совпадать с outputDir",
@@ -307,7 +299,7 @@ func ValidateBuildStagingDir(cfg config.Config) []Issue {
 		}}
 	}
 
-	if absStaging == absSource {
+	if cfg.Build.StagingDir == cfg.Build.SourceDir {
 		return []Issue{{
 			Code:     CodeStagingDirEqualsSourceDir,
 			Message:  "stagingDir не должен совпадать с sourceDir",

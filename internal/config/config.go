@@ -88,6 +88,22 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
+// LoadAndPrepare загружает конфигурацию, применяет значения по умолчанию и нормализует пути.
+func LoadAndPrepare(path string) (Config, error) {
+	cfg, err := Load(path)
+	if err != nil {
+		return Config{}, err
+	}
+
+	cfg = ApplyDefaults(cfg)
+
+	if err := cfg.NormalizePaths(); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
 func Save(cfg Config, path string) error {
 	data, err := yaml.Marshal(cfg)
 	if err != nil {

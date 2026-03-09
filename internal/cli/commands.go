@@ -42,12 +42,11 @@ func Scaffold(reporter report.Reporter, dryRun bool) error {
 
 func Validate(reporter report.Reporter) error {
 	reporter.SetCommand("validate")
-	cfg, err := config.Load(config.DefaultConfigPath)
+	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
 		reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
-	cfg = config.ApplyDefaults(cfg)
 
 	// Для валидации, если версия пуста, попробуем ее распарсить чтобы убедиться что файл корректен
 	if cfg.Module.Version == "" {
@@ -89,12 +88,11 @@ func Validate(reporter report.Reporter) error {
 
 func Build(reporter report.Reporter, dryRun bool) error {
 	reporter.SetCommand("build")
-	cfg, err := config.Load(config.DefaultConfigPath)
+	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
 		reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
-	cfg = config.ApplyDefaults(cfg)
 
 	// Автоопределение версии, если она не указана в конфиге
 	if cfg.Module.Version == "" {
@@ -107,8 +105,6 @@ func Build(reporter report.Reporter, dryRun bool) error {
 		}
 		cfg.Module.Version = ver
 	}
-
-	_ = cfg.NormalizePaths()
 
 	// 1. Validate
 	issues := validate.Run(cfg)
@@ -164,12 +160,11 @@ func Build(reporter report.Reporter, dryRun bool) error {
 
 func VersionShow(reporter report.Reporter) error {
 	reporter.SetCommand("version show")
-	cfg, err := config.Load(config.DefaultConfigPath)
+	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
 		reporter.PrintConfigError(fmt.Errorf("загрузка конфигурации: %w", err))
 		return NewCLIError(ExitConfigErr, err)
 	}
-	cfg = config.ApplyDefaults(cfg)
 
 	installPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install)
 	versionFile := filepath.Join(installPath, "version.php")
@@ -195,7 +190,7 @@ func VersionShow(reporter report.Reporter) error {
 
 func VersionBump(reporter report.Reporter, bumpLevel string) error {
 	reporter.SetCommand(fmt.Sprintf("version bump %s", bumpLevel))
-	cfg, err := config.Load(config.DefaultConfigPath)
+	cfg, err := config.Load(config.DefaultConfigPath) // Здесь Load нужен без ApplyDefaults/Normalize для проверки versionInConfig
 	if err != nil {
 		reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
@@ -205,6 +200,7 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 	versionInConfig := cfg.Module.Version
 
 	cfg = config.ApplyDefaults(cfg)
+	_ = cfg.NormalizePaths()
 	path := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
 	oldVer, newVer, err := version.BumpVersion(path, cfg.Module.VersionScheme, bumpLevel)
 	if err != nil {

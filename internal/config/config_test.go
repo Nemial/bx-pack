@@ -45,6 +45,37 @@ func TestConfig_LoadSave(t *testing.T) {
 	}
 }
 
+func TestLoadAndPrepare(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, ".bxpack.yml")
+
+	cfg := Config{}
+	cfg.Module.ID = "test.module"
+	cfg.Build.SourceDir = "."
+	if err := Save(cfg, cfgPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	loaded, err := LoadAndPrepare(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to load and prepare config: %v", err)
+	}
+
+	// 1. Проверка применения дефолтов
+	if loaded.Module.Name != "Example Module" {
+		t.Errorf("expected default module name, got %q", loaded.Module.Name)
+	}
+
+	// 2. Проверка нормализации путей
+	if !filepath.IsAbs(loaded.Build.SourceDir) {
+		t.Errorf("expected absolute sourceDir, got %q", loaded.Build.SourceDir)
+	}
+
+	if !filepath.IsAbs(loaded.Build.OutputDir) {
+		t.Errorf("expected absolute outputDir, got %q", loaded.Build.OutputDir)
+	}
+}
+
 func TestConfig_Load_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 

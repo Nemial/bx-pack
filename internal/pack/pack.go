@@ -12,11 +12,6 @@ import (
 )
 
 func PrepareStaging(cfg config.Config) error {
-	// Нормализуем пути перед работой
-	if err := cfg.NormalizePaths(); err != nil {
-		return fmt.Errorf("normalize paths: %w", err)
-	}
-
 	// Очистка и создание staging директории
 	if err := os.RemoveAll(cfg.Build.StagingDir); err != nil {
 		return fmt.Errorf("cleanup staging dir: %w", err)
@@ -86,11 +81,6 @@ func GetArchivePath(cfg config.Config) string {
 }
 
 func CreateArchive(cfg config.Config) (string, error) {
-	// Нормализуем пути перед работой
-	if err := cfg.NormalizePaths(); err != nil {
-		return "", fmt.Errorf("normalize paths: %w", err)
-	}
-
 	if err := os.MkdirAll(cfg.Build.OutputDir, 0755); err != nil {
 		return "", fmt.Errorf("create output dir: %w", err)
 	}
