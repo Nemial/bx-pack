@@ -331,3 +331,124 @@ func TestPathSafety(t *testing.T) {
 		assertExactEntries(t, readStagedFiles(t, filepath.Join(tempDir, ".staging")), map[string]string{"test.txt": "test"})
 	})
 }
+
+func TestIsExcluded(t *testing.T) {
+	tests := []struct {
+		name     string
+		relPath  string
+		exclude  []string
+		expected bool
+	}{
+		{
+			name:     "exact file match",
+			relPath:  "config.php",
+			exclude:  []string{"config.php"},
+			expected: true,
+		},
+		{
+			name:     "exact dir match",
+			relPath:  "tests",
+			exclude:  []string{"tests"},
+			expected: true,
+		},
+		{
+			name:     "file in excluded dir",
+			relPath:  "tests/unit/test.php",
+			exclude:  []string{"tests"},
+			expected: true,
+		},
+		{
+			name:     "glob extension match",
+			relPath:  "error.log",
+			exclude:  []string{"*.log"},
+			expected: true,
+		},
+		{
+			name:     "glob extension match in subdir",
+			relPath:  "logs/error.log",
+			exclude:  []string{"*.log"},
+			expected: true,
+		},
+		{
+			name:     "glob subdir match",
+			relPath:  "temp/cache/file.txt",
+			exclude:  []string{"temp/*"},
+			expected: true,
+		},
+		{
+			name:     "no match",
+			relPath:  "install/index.php",
+			exclude:  []string{"tests", "*.log"},
+			expected: false,
+		},
+		{
+			name:     "empty pattern",
+			relPath:  "install/index.php",
+			exclude:  []string{""},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := IsExcluded(tt.relPath, tt.exclude)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("IsExcluded(%q, %v) = %v, want %v", tt.relPath, tt.exclude, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPrepareStaging_GlobExclusion(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourceDir := filepath.Join(tmpDir, "source")
+	stagingDir := filepath.Join(tmpDir, "staging")
+	outputDir := filepath.Join(tmpDir, "dist")
+
+	files := map[string]string{
+		"install/index.php":   "php content",
+		"tests/test.php":      "test content",
+		"debug.log":           "log content",
+		"logs/app.log":        "app log",
+		"temp/cache/item.txt": "cache item",
+		"readme.txt":          "readme",
+	}
+	// Создаем директории вручную, так как writeTestFiles может не создавать их для пустых путей (хотя здесь пути с файлами)
+	os.MkdirAll(filepath.Join(sourceDir, "install"), 0755)
+	os.MkdirAll(filepath.Join(sourceDir, "tests"), 0755)
+	os.MkdirAll(filepath.Join(sourceDir, "logs"), 0755)
+	os.MkdirAll(filepath.Join(sourceDir, "temp/cache"), 0755)
+
+	writeTestFiles(t, sourceDir, files)
+
+	cfg := config.Config{
+		Module: config.Module{ID: "test.module", Version: "1.0.0"},
+		Build: config.Build{
+			SourceDir:  sourceDir,
+			StagingDir: stagingDir,
+			OutputDir:  outputDir,
+		},
+		Exclude: []string{
+			"tests",
+			"*.log",
+			"temp/*",
+		},
+	}
+
+	err := PrepareStaging(cfg)
+	if err != nil {
+		t.Fatalf("PrepareStaging failed: %v", err)
+	}
+
+	staged := readStagedFiles(t, stagingDir)
+
+	expected := map[string]string{
+		"install/index.php": "php content",
+		"readme.txt":        "readme",
+	}
+
+	assertExactEntries(t, staged, expected)
+}

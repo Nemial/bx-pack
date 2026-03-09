@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"bx-pack/internal/config"
+	"bx-pack/internal/pack"
 )
 
 var (
@@ -360,15 +361,12 @@ func ValidateForbiddenPaths(cfg config.Config) []Issue {
 		}
 
 		// Проверяем, не исключен ли уже этот путь
-		isExcluded := false
-		for _, exc := range cfg.Exclude {
-			if relPath == exc || strings.HasPrefix(relPath, exc+string(filepath.Separator)) {
-				isExcluded = true
-				break
-			}
+		excluded, err := pack.IsExcluded(relPath, cfg.Exclude)
+		if err != nil {
+			return nil // Игнорируем ошибки при обходе
 		}
 
-		if isExcluded {
+		if excluded {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}

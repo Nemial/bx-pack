@@ -11,6 +11,49 @@ import (
 	"bx-pack/internal/config"
 )
 
+// IsExcluded проверяет, должен ли путь быть исключен на основе списка паттернов.
+func IsExcluded(relPath string, exclude []string) (bool, error) {
+	for _, pattern := range exclude {
+		if pattern == "" {
+			continue
+		}
+
+		// Точное совпадение или префикс (для директорий)
+		if relPath == pattern || strings.HasPrefix(relPath, pattern+string(filepath.Separator)) {
+			return true, nil
+		}
+
+		// Поддержка glob-паттернов
+		// Сначала проверяем весь путь
+		match, err := filepath.Match(pattern, relPath)
+		if err != nil {
+			return false, fmt.Errorf("invalid pattern %q: %w", pattern, err)
+		}
+		if match {
+			return true, nil
+		}
+
+		// Проверка glob-паттерна для всех родительских директорий
+		// Например, "temp/*" должен исключать "temp/cache/file.txt"
+		parts := strings.Split(relPath, string(filepath.Separator))
+		for i := 1; i < len(parts); i++ {
+			parent := strings.Join(parts[:i], string(filepath.Separator))
+			match, err = filepath.Match(pattern, parent)
+			if err == nil && match {
+				return true, nil
+			}
+		}
+
+		// Проверка glob-паттерна для базового имени (например, *.log в любой папке)
+		// filepath.Match("*.log", "dir/file.log") вернет false, поэтому проверяем базовое имя
+		match, err = filepath.Match(pattern, filepath.Base(relPath))
+		if err == nil && match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func PrepareStaging(cfg config.Config) error {
 	// Очистка и создание staging директории
 	if err := os.RemoveAll(cfg.Build.StagingDir); err != nil {
@@ -40,14 +83,16 @@ func PrepareStaging(cfg config.Config) error {
 			return err
 		}
 
-		// Простая логика исключений
-		for _, exc := range cfg.Exclude {
-			if relPath == exc || strings.HasPrefix(relPath, exc+string(filepath.Separator)) {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
+		// Логика исключений
+		excluded, err := IsExcluded(relPath, cfg.Exclude)
+		if err != nil {
+			return err
+		}
+		if excluded {
+			if info.IsDir() {
+				return filepath.SkipDir
 			}
+			return nil
 		}
 
 		// Исключаем саму staging и output директории
