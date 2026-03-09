@@ -15,7 +15,8 @@ func TestInit_Integration(t *testing.T) {
 	defer os.Chdir(origWd)
 
 	// 1. First init
-	err := Init()
+	reporter := report.NewReporter(report.TextFormat)
+	err := Init(reporter)
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -25,7 +26,7 @@ func TestInit_Integration(t *testing.T) {
 	}
 
 	// 2. Second init should fail
-	err = Init()
+	err = Init(reporter)
 	if err == nil {
 		t.Error("Init should fail if config already exists")
 	}
@@ -59,7 +60,8 @@ func TestBuild_Integration(t *testing.T) {
 	}
 
 	// Run Build
-	err := Build(report.TextFormat)
+	reporter := report.NewReporter(report.TextFormat)
+	err := Build(reporter)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}
@@ -86,7 +88,8 @@ func TestValidate_Integration(t *testing.T) {
 	}
 
 	// Run Validate
-	err := Validate(report.TextFormat)
+	reporter := report.NewReporter(report.TextFormat)
+	err := Validate(reporter)
 	if err == nil {
 		t.Error("Validate should fail for default config")
 	}

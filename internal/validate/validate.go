@@ -30,7 +30,19 @@ type Issue struct {
 }
 
 func (i Issue) String() string {
-	return fmt.Sprintf("[%s] %s: %s", i.Severity, i.Code, i.Message)
+	var prefix string
+	switch i.Severity {
+	case Error:
+		prefix = "Ошибка проверки"
+	case Warning:
+		prefix = "Предупреждение"
+	case Info:
+		prefix = "Инфо"
+	default:
+		prefix = string(i.Severity)
+	}
+
+	return fmt.Sprintf("%s: %s (%s)", prefix, i.Message, i.Code)
 }
 
 type Validator func(cfg config.Config) []Issue

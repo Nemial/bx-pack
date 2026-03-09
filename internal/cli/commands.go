@@ -9,28 +9,32 @@ import (
 	"os"
 )
 
-func Init() error {
+func Init(reporter report.Reporter) error {
 	if _, err := os.Stat(config.DefaultConfigPath); err == nil {
-		return fmt.Errorf("файл конфигурации %q уже существует", config.DefaultConfigPath)
+		err := fmt.Errorf("файл конфигурации %q уже существует", config.DefaultConfigPath)
+		reporter.PrintConfigError(err)
+		return err
 	}
 
 	content := config.GenerateTemplate()
 	if err := os.WriteFile(config.DefaultConfigPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("ошибка записи шаблона конфигурации: %w", err)
+		err := fmt.Errorf("ошибка записи шаблона конфигурации: %w", err)
+		reporter.PrintConfigError(err)
+		return err
 	}
 
-	fmt.Printf("Создан стандартный шаблон конфигурации: %s\n", config.DefaultConfigPath)
+	reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
 	return nil
 }
 
-func Validate(format report.Format) error {
+func Validate(reporter report.Reporter) error {
 	cfg, err := config.Load(config.DefaultConfigPath)
 	if err != nil {
+		reporter.PrintConfigError(err)
 		return err
 	}
 	cfg = config.ApplyDefaults(cfg)
 
-	reporter := report.NewReporter(format)
 	issues := validate.Run(cfg)
 	reporter.PrintIssues(issues)
 
@@ -43,45 +47,53 @@ func Validate(format report.Format) error {
 	return nil
 }
 
-func Build(format report.Format) error {
+func Build(reporter report.Reporter) error {
 	cfg, err := config.Load(config.DefaultConfigPath)
 	if err != nil {
+		reporter.PrintConfigError(err)
 		return err
 	}
 	cfg = config.ApplyDefaults(cfg)
 
-	reporter := report.NewReporter(format)
-
 	// 1. Validate
 	issues := validate.Run(cfg)
-	if format == report.TextFormat {
-		reporter.PrintIssues(issues)
-	}
+	// Для JSON выводим ошибки только если они есть и мешают сборке,
+	// или если мы хотим видеть весь отчет. В текущей реализации Build
+	// при ошибках возвращает ошибку.
 
+	hasErrors := false
 	for _, issue := range issues {
 		if issue.Severity == validate.Error {
-			if format == report.JSONFormat {
-				reporter.PrintIssues(issues)
-			}
-			return fmt.Errorf("сборка невозможна: валидация завершилась с ошибками")
+			hasErrors = true
+			break
 		}
 	}
 
-	// 2. Prepare staging
-	if format == report.TextFormat {
-		fmt.Println("Подготовка временной директории...")
+	if hasErrors {
+		reporter.PrintIssues(issues)
+		return fmt.Errorf("сборка невозможна: валидация завершилась с ошибками")
 	}
+
+	// Выводим предупреждения, если они есть
+	if len(issues) > 0 {
+		reporter.PrintIssues(issues)
+	}
+
+	// 2. Prepare staging
+	reporter.PrintInfo("Подготовка временной директории...")
 	if err := pack.PrepareStaging(cfg); err != nil {
-		return fmt.Errorf("подготовка staging: %w", err)
+		err := fmt.Errorf("подготовка staging: %w", err)
+		reporter.PrintConfigError(err) // Можно использовать PrintConfigError или создать PrintError
+		return err
 	}
 
 	// 3. Create archive
-	if format == report.TextFormat {
-		fmt.Println("Создание архива...")
-	}
+	reporter.PrintInfo("Создание архива...")
 	archivePath, err := pack.CreateArchive(cfg)
 	if err != nil {
-		return fmt.Errorf("создание архива: %w", err)
+		err := fmt.Errorf("создание архива: %w", err)
+		reporter.PrintConfigError(err)
+		return err
 	}
 
 	reporter.PrintSummary(archivePath)

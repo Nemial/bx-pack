@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bx-pack/internal/cli"
-	"bx-pack/internal/report"
 	"flag"
 	"fmt"
 	"os"
+
+	"bx-pack/internal/cli"
+	"bx-pack/internal/report"
 )
 
 const (
@@ -37,16 +38,17 @@ func main() {
 		os.Exit(ExitError)
 	}
 
+	reporter := report.NewReporter(format)
 	command := args[0]
 	var err error
 
 	switch command {
 	case "init":
-		err = cli.Init()
+		err = cli.Init(reporter)
 	case "validate":
-		err = cli.Validate(format)
+		err = cli.Validate(reporter)
 	case "build":
-		err = cli.Build(format)
+		err = cli.Build(reporter)
 	case "help":
 		printUsage()
 		os.Exit(ExitSuccess)
@@ -57,10 +59,10 @@ func main() {
 	}
 
 	if err != nil {
-		if format == report.TextFormat {
-			fmt.Fprintf(os.Stderr, "Ошибка: %v\n", err)
-		}
-		// В будущем можно добавить типизированные ошибки для разных кодов
+		// Ошибка уже выведена через репортер внутри функций cli,
+		// или нам нужно вывести ее здесь, если она "внешняя" (например, ошибка конфига)
+		// Для единообразия, CLI функции должны сами выводить свои ошибки через репортер
+		// или мы проверяем тип ошибки.
 		os.Exit(ExitValError)
 	}
 }
