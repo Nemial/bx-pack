@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -94,6 +95,27 @@ func Save(cfg Config, path string) error {
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return fmt.Errorf("write config file %q: %w", path, err)
+	}
+
+	return nil
+}
+
+// NormalizePaths нормализует пути в конфиге, делая их абсолютными.
+func (cfg *Config) NormalizePaths() error {
+	var err error
+	cfg.Build.SourceDir, err = filepath.Abs(cfg.Build.SourceDir)
+	if err != nil {
+		return fmt.Errorf("normalize sourceDir %q: %w", cfg.Build.SourceDir, err)
+	}
+
+	cfg.Build.OutputDir, err = filepath.Abs(cfg.Build.OutputDir)
+	if err != nil {
+		return fmt.Errorf("normalize outputDir %q: %w", cfg.Build.OutputDir, err)
+	}
+
+	cfg.Build.StagingDir, err = filepath.Abs(cfg.Build.StagingDir)
+	if err != nil {
+		return fmt.Errorf("normalize stagingDir %q: %w", cfg.Build.StagingDir, err)
 	}
 
 	return nil

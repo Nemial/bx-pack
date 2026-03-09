@@ -12,6 +12,11 @@ import (
 )
 
 func PrepareStaging(cfg config.Config) error {
+	// Нормализуем пути перед работой
+	if err := cfg.NormalizePaths(); err != nil {
+		return fmt.Errorf("normalize paths: %w", err)
+	}
+
 	// Очистка и создание staging директории
 	if err := os.RemoveAll(cfg.Build.StagingDir); err != nil {
 		return fmt.Errorf("cleanup staging dir: %w", err)
@@ -20,6 +25,9 @@ func PrepareStaging(cfg config.Config) error {
 	if err := os.MkdirAll(cfg.Build.StagingDir, 0755); err != nil {
 		return fmt.Errorf("create staging dir: %w", err)
 	}
+
+	absStaging := cfg.Build.StagingDir
+	absOutput := cfg.Build.OutputDir
 
 	// Копирование файлов
 	return filepath.Walk(cfg.Build.SourceDir, func(path string, info os.FileInfo, err error) error {
@@ -47,10 +55,11 @@ func PrepareStaging(cfg config.Config) error {
 			}
 		}
 
-		// Исключаем саму staging и output директории (если они внутри sourceDir)
-		absPath, _ := filepath.Abs(path)
-		absStaging, _ := filepath.Abs(cfg.Build.StagingDir)
-		absOutput, _ := filepath.Abs(cfg.Build.OutputDir)
+		// Исключаем саму staging и output директории
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
 
 		if strings.HasPrefix(absPath, absStaging) || strings.HasPrefix(absPath, absOutput) {
 			if info.IsDir() {
@@ -69,6 +78,11 @@ func PrepareStaging(cfg config.Config) error {
 }
 
 func CreateArchive(cfg config.Config) (string, error) {
+	// Нормализуем пути перед работой
+	if err := cfg.NormalizePaths(); err != nil {
+		return "", fmt.Errorf("normalize paths: %w", err)
+	}
+
 	if err := os.MkdirAll(cfg.Build.OutputDir, 0755); err != nil {
 		return "", fmt.Errorf("create output dir: %w", err)
 	}

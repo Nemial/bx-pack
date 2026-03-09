@@ -154,3 +154,73 @@ func TestPrepareStaging_Errors(t *testing.T) {
 		}
 	})
 }
+
+func TestPathSafety(t *testing.T) {
+	t.Run("exclude staging and output even if inside source", func(t *testing.T) {
+		tempDir := t.TempDir()
+		sourceDir := filepath.Join(tempDir, "src")
+		os.MkdirAll(sourceDir, 0755)
+
+		stagingDir := filepath.Join(sourceDir, ".staging")
+		outputDir := filepath.Join(sourceDir, "dist")
+
+		// Create files in source, staging and output
+		os.WriteFile(filepath.Join(sourceDir, "keep.txt"), []byte("keep"), 0644)
+		os.MkdirAll(stagingDir, 0755)
+		os.WriteFile(filepath.Join(stagingDir, "skip-staging.txt"), []byte("skip"), 0644)
+		os.MkdirAll(outputDir, 0755)
+		os.WriteFile(filepath.Join(outputDir, "skip-output.txt"), []byte("skip"), 0644)
+
+		cfg := config.Default()
+		cfg.Build.SourceDir = sourceDir
+		cfg.Build.StagingDir = stagingDir
+		cfg.Build.OutputDir = outputDir
+
+		err := PrepareStaging(cfg)
+		if err != nil {
+			t.Fatalf("PrepareStaging failed: %v", err)
+		}
+
+		// Check what's in staging
+		// Normalize paths for comparison as PrepareStaging might have normalized them in cfg
+		normStagingDir, _ := filepath.Abs(stagingDir)
+
+		files, _ := os.ReadDir(normStagingDir)
+		for _, f := range files {
+			if f.Name() == "skip-staging.txt" || f.Name() == "skip-output.txt" {
+				t.Errorf("found forbidden file in staging: %s", f.Name())
+			}
+			if f.Name() == "dist" || f.Name() == ".staging" {
+				t.Errorf("found forbidden directory in staging: %s", f.Name())
+			}
+		}
+
+		if _, err := os.Stat(filepath.Join(normStagingDir, "keep.txt")); os.IsNotExist(err) {
+			t.Error("expected keep.txt to be in staging")
+		}
+	})
+
+	t.Run("relative paths normalization", func(t *testing.T) {
+		tempDir := t.TempDir()
+		oldWd, _ := os.Getwd()
+		os.Chdir(tempDir)
+		defer os.Chdir(oldWd)
+
+		os.MkdirAll("src", 0755)
+		os.WriteFile("src/test.txt", []byte("test"), 0644)
+
+		cfg := config.Default()
+		cfg.Build.SourceDir = "./src"
+		cfg.Build.StagingDir = "./.staging"
+		cfg.Build.OutputDir = "./dist"
+
+		err := PrepareStaging(cfg)
+		if err != nil {
+			t.Fatalf("PrepareStaging failed: %v", err)
+		}
+
+		if _, err := os.Stat(".staging/test.txt"); os.IsNotExist(err) {
+			t.Error("expected .staging/test.txt to exist")
+		}
+	})
+}

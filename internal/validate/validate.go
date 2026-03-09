@@ -48,6 +48,9 @@ func (i Issue) String() string {
 type Validator func(cfg config.Config) []Issue
 
 func Run(cfg config.Config) []Issue {
+	// Нормализация путей перед валидацией, если возможно
+	_ = cfg.NormalizePaths()
+
 	validators := []Validator{
 		ValidateModuleID,
 		ValidateModuleVersion,
@@ -198,6 +201,18 @@ func ValidateBuildOutputDir(cfg config.Config) []Issue {
 			Severity: Error,
 		}}
 	}
+
+	absOutput, _ := filepath.Abs(cfg.Build.OutputDir)
+	absSource, _ := filepath.Abs(cfg.Build.SourceDir)
+
+	if absOutput == absSource {
+		return []Issue{{
+			Code:     "OUTPUT_DIR_EQUALS_SOURCE_DIR",
+			Message:  "outputDir не должен совпадать с sourceDir",
+			Severity: Error,
+		}}
+	}
+
 	return nil
 }
 
@@ -209,13 +224,28 @@ func ValidateBuildStagingDir(cfg config.Config) []Issue {
 			Severity: Error,
 		}}
 	}
-	if cfg.Build.StagingDir == cfg.Build.OutputDir {
+
+	// Сравниваем нормализованные пути
+	absStaging, _ := filepath.Abs(cfg.Build.StagingDir)
+	absOutput, _ := filepath.Abs(cfg.Build.OutputDir)
+	absSource, _ := filepath.Abs(cfg.Build.SourceDir)
+
+	if absStaging == absOutput {
 		return []Issue{{
 			Code:     "STAGING_DIR_EQUALS_OUTPUT_DIR",
 			Message:  "stagingDir не должен совпадать с outputDir",
 			Severity: Error,
 		}}
 	}
+
+	if absStaging == absSource {
+		return []Issue{{
+			Code:     "STAGING_DIR_EQUALS_SOURCE_DIR",
+			Message:  "stagingDir не должен совпадать с sourceDir",
+			Severity: Error,
+		}}
+	}
+
 	return nil
 }
 
