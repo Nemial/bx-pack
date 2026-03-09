@@ -1,0 +1,318 @@
+package validate
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"bx-pack/internal/config"
+)
+
+var (
+	reModuleID      = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]+[a-z0-9]$`)
+	reModuleVersion = regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9a-zA-Z.-]+)?(\+[0-9a-zA-Z.-]+)?$`)
+)
+
+type Severity string
+
+const (
+	Error   Severity = "ERROR"
+	Warning Severity = "WARNING"
+	Info    Severity = "INFO"
+)
+
+type Issue struct {
+	Code     string
+	Message  string
+	Severity Severity
+}
+
+func (i Issue) String() string {
+	return fmt.Sprintf("[%s] %s: %s", i.Severity, i.Code, i.Message)
+}
+
+type Validator func(cfg config.Config) []Issue
+
+func Run(cfg config.Config) []Issue {
+	validators := []Validator{
+		ValidateModuleID,
+		ValidateModuleVersion,
+		ValidateModuleName,
+		ValidateModuleInstall,
+		ValidateBuildSourceDir,
+		ValidateBuildOutputDir,
+		ValidateBuildStagingDir,
+		ValidateBuildArchiveName,
+		ValidateExcludePatterns,
+		ValidateForbiddenPaths,
+	}
+
+	var allIssues []Issue
+	for _, v := range validators {
+		allIssues = append(allIssues, v(cfg)...)
+	}
+	return allIssues
+}
+
+func ValidateModuleID(cfg config.Config) []Issue {
+	if cfg.Module.ID == "" || cfg.Module.ID == "example.module" {
+		return []Issue{{
+			Code:     "MODULE_ID_INVALID",
+			Message:  "module.id должен быть установлен в значение, отличное от стандартного",
+			Severity: Error,
+		}}
+	}
+
+	if !reModuleID.MatchString(cfg.Module.ID) {
+		return []Issue{{
+			Code:     "MODULE_ID_INVALID",
+			Message:  fmt.Sprintf("module.id %q содержит недопустимые символы", cfg.Module.ID),
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateModuleVersion(cfg config.Config) []Issue {
+	if cfg.Module.Version == "" {
+		return []Issue{{
+			Code:     "MODULE_VERSION_REQUIRED",
+			Message:  "поле module.version обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+
+	if !reModuleVersion.MatchString(cfg.Module.Version) {
+		return []Issue{{
+			Code:     "MODULE_VERSION_INVALID",
+			Message:  fmt.Sprintf("module.version %q не соответствует формату семантического версионирования", cfg.Module.Version),
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateModuleName(cfg config.Config) []Issue {
+	if cfg.Module.Name == "" {
+		return []Issue{{
+			Code:     "MODULE_NAME_REQUIRED",
+			Message:  "поле module.name обязательно для заполнения",
+			Severity: Warning,
+		}}
+	}
+	return nil
+}
+
+func ValidateModuleInstall(cfg config.Config) []Issue {
+	if cfg.Module.Install == "" {
+		return []Issue{{
+			Code:     "MODULE_INSTALL_REQUIRED",
+			Message:  "поле module.install обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+
+	installPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install)
+	info, err := os.Stat(installPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Issue{{
+				Code:     "MODULE_INSTALL_NOT_FOUND",
+				Message:  fmt.Sprintf("директория установки %q не найдена", cfg.Module.Install),
+				Severity: Error,
+			}}
+		}
+		return []Issue{{
+			Code:     "MODULE_INSTALL_STAT_ERROR",
+			Message:  fmt.Sprintf("ошибка при проверке директории установки %q: %v", cfg.Module.Install, err),
+			Severity: Warning,
+		}}
+	}
+
+	if !info.IsDir() {
+		return []Issue{{
+			Code:     "MODULE_INSTALL_NOT_DIR",
+			Message:  fmt.Sprintf("путь установки %q должен быть директорией", cfg.Module.Install),
+			Severity: Error,
+		}}
+	}
+
+	return nil
+}
+
+func ValidateBuildSourceDir(cfg config.Config) []Issue {
+	if cfg.Build.SourceDir == "" {
+		return []Issue{{
+			Code:     "BUILD_SOURCE_DIR_REQUIRED",
+			Message:  "поле build.sourceDir обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+
+	info, err := os.Stat(cfg.Build.SourceDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Issue{{
+				Code:     "BUILD_SOURCE_DIR_NOT_FOUND",
+				Message:  fmt.Sprintf("исходная директория %q не найдена", cfg.Build.SourceDir),
+				Severity: Error,
+			}}
+		}
+		return []Issue{{
+			Code:     "BUILD_SOURCE_DIR_STAT_ERROR",
+			Message:  fmt.Sprintf("ошибка при проверке исходной директории %q: %v", cfg.Build.SourceDir, err),
+			Severity: Warning,
+		}}
+	}
+
+	if !info.IsDir() {
+		return []Issue{{
+			Code:     "BUILD_SOURCE_DIR_NOT_DIR",
+			Message:  fmt.Sprintf("исходный путь %q должен быть директорией", cfg.Build.SourceDir),
+			Severity: Error,
+		}}
+	}
+
+	return nil
+}
+
+func ValidateBuildOutputDir(cfg config.Config) []Issue {
+	if cfg.Build.OutputDir == "" {
+		return []Issue{{
+			Code:     "BUILD_OUTPUT_DIR_REQUIRED",
+			Message:  "поле build.outputDir обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateBuildStagingDir(cfg config.Config) []Issue {
+	if cfg.Build.StagingDir == "" {
+		return []Issue{{
+			Code:     "BUILD_STAGING_DIR_REQUIRED",
+			Message:  "поле build.stagingDir обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+	if cfg.Build.StagingDir == cfg.Build.OutputDir {
+		return []Issue{{
+			Code:     "STAGING_DIR_EQUALS_OUTPUT_DIR",
+			Message:  "stagingDir не должен совпадать с outputDir",
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateBuildArchiveName(cfg config.Config) []Issue {
+	if cfg.Build.ArchiveName == "" {
+		return []Issue{{
+			Code:     "BUILD_ARCHIVE_NAME_REQUIRED",
+			Message:  "поле build.archiveName обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateExcludePatterns(cfg config.Config) []Issue {
+	var issues []Issue
+	for _, pattern := range cfg.Exclude {
+		if pattern == "" {
+			issues = append(issues, Issue{
+				Code:     "EXCLUDE_PATTERN_EMPTY",
+				Message:  "в списке exclude не должно быть пустых строк",
+				Severity: Warning,
+			})
+		}
+	}
+	return issues
+}
+
+func ValidateForbiddenPaths(cfg config.Config) []Issue {
+	var issues []Issue
+	forbiddenNames := []string{".git", ".idea", ".bxpack", ".DS_Store"}
+	forbiddenExts := []string{".log", ".tmp", ".bak"}
+
+	// Проверяем только если sourceDir существует
+	if _, err := os.Stat(cfg.Build.SourceDir); err != nil {
+		return nil
+	}
+
+	err := filepath.Walk(cfg.Build.SourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Игнорируем ошибки при обходе
+		}
+
+		if path == cfg.Build.SourceDir {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(cfg.Build.SourceDir, path)
+		if err != nil {
+			return nil
+		}
+
+		// Проверяем, не исключен ли уже этот путь
+		isExcluded := false
+		for _, exc := range cfg.Exclude {
+			if relPath == exc || strings.HasPrefix(relPath, exc+string(filepath.Separator)) {
+				isExcluded = true
+				break
+			}
+		}
+
+		if isExcluded {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		name := info.Name()
+		ext := filepath.Ext(name)
+
+		isForbidden := false
+		for _, fn := range forbiddenNames {
+			if name == fn {
+				isForbidden = true
+				break
+			}
+		}
+
+		if !isForbidden {
+			for _, fe := range forbiddenExts {
+				if ext == fe {
+					isForbidden = true
+					break
+				}
+			}
+		}
+
+		if isForbidden {
+			issues = append(issues, Issue{
+				Code:     "FORBIDDEN_PATH_FOUND",
+				Message:  fmt.Sprintf("обнаружен запрещенный путь в исходниках: %s (рекомендуется добавить в exclude)", relPath),
+				Severity: Warning,
+			})
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		issues = append(issues, Issue{
+			Code:     "FORBIDDEN_PATH_SCAN_ERROR",
+			Message:  fmt.Sprintf("ошибка при сканировании запрещенных путей: %v", err),
+			Severity: Warning,
+		})
+	}
+
+	return issues
+}
