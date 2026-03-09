@@ -10,13 +10,13 @@ import (
 )
 
 var (
-	versionDoubleRE = regexp.MustCompile(`(.*?)\s*\$VERSION\s*=\s*"\s*([^"]*)\s*"\s*;?\s*`)
-	versionSingleRE = regexp.MustCompile(`(.*?)\s*\$VERSION\s*=\s*'\s*([^']*)\s*'\s*;?\s*`)
-	dateDoubleRE    = regexp.MustCompile(`(.*?)\s*\$VERSION_DATE\s*=\s*"\s*([^"]*)\s*"\s*;?\s*`)
-	dateSingleRE    = regexp.MustCompile(`(.*?)\s*\$VERSION_DATE\s*=\s*'\s*([^']*)\s*'\s*;?\s*`)
+	versionDoubleRE = regexp.MustCompile(`(.*?)\s*(?:\$VERSION|"VERSION")\s*(?:=|=>)\s*"\s*([^"]*)\s*"\s*(?:;|,)?\s*`)
+	versionSingleRE = regexp.MustCompile(`(.*?)\s*(?:\$VERSION|'VERSION')\s*(?:=|=>)\s*'\s*([^']*)\s*'\s*(?:;|,)?\s*`)
+	dateDoubleRE    = regexp.MustCompile(`(.*?)\s*(?:\$VERSION_DATE|"VERSION_DATE")\s*(?:=|=>)\s*"\s*([^"]*)\s*"\s*(?:;|,)?\s*`)
+	dateSingleRE    = regexp.MustCompile(`(.*?)\s*(?:\$VERSION_DATE|'VERSION_DATE')\s*(?:=|=>)\s*'\s*([^']*)\s*'\s*(?:;|,)?\s*`)
 )
 
-func parseAssign(line, varName string) (prefix, quote, value string, ok bool) {
+func parseAssign(line, varName string) (prefix, operator, quote, value string, ok bool) {
 	if varName == "VERSION" {
 		for _, re := range []*regexp.Regexp{versionDoubleRE, versionSingleRE} {
 			match := re.FindStringSubmatch(line)
@@ -25,7 +25,17 @@ func parseAssign(line, varName string) (prefix, quote, value string, ok bool) {
 				if re == versionSingleRE {
 					q = "'"
 				}
-				return match[1], q, strings.TrimSpace(match[2]), true
+				op := "="
+				if strings.Contains(match[0], "=>") {
+					op = "=>"
+				}
+				var actualVarName string
+				if strings.Contains(match[0], "$VERSION") {
+					actualVarName = "$VERSION"
+				} else {
+					actualVarName = q + "VERSION" + q
+				}
+				return match[1], actualVarName + " " + op, q, strings.TrimSpace(match[2]), true
 			}
 		}
 	} else if varName == "VERSION_DATE" {
@@ -36,11 +46,21 @@ func parseAssign(line, varName string) (prefix, quote, value string, ok bool) {
 				if re == dateSingleRE {
 					q = "'"
 				}
-				return match[1], q, strings.TrimSpace(match[2]), true
+				op := "="
+				if strings.Contains(match[0], "=>") {
+					op = "=>"
+				}
+				var actualVarName string
+				if strings.Contains(match[0], "$VERSION_DATE") {
+					actualVarName = "$VERSION_DATE"
+				} else {
+					actualVarName = q + "VERSION_DATE" + q
+				}
+				return match[1], actualVarName + " " + op, q, strings.TrimSpace(match[2]), true
 			}
 		}
 	}
-	return "", "", "", false
+	return "", "", "", "", false
 }
 
 func ParseVersion(path string) (string, error) {
@@ -50,7 +70,7 @@ func ParseVersion(path string) (string, error) {
 	}
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
-		_, _, value, ok := parseAssign(line, "VERSION")
+		_, _, _, value, ok := parseAssign(line, "VERSION")
 		if ok {
 			return value, nil
 		}
@@ -64,17 +84,14 @@ func BumpVersion(path string, bumpLevel string) error {
 		return fmt.Errorf("чтение файла %q: %w", path, err)
 	}
 	lines := strings.Split(string(data), "\n")
-	var versionPrefix, versionQuote string
-	versionUpdated := false
-	dateUpdated := false
+	var versionUpdated bool
+	var dateUpdated bool
 	bumpLevel = strings.ToLower(bumpLevel)
 
 	// Парсим и обновляем VERSION
 	for i, line := range lines {
-		prefix, quote, oldVersion, ok := parseAssign(line, "VERSION")
+		prefix, operator, quote, oldVersion, ok := parseAssign(line, "VERSION")
 		if ok {
-			versionPrefix = prefix
-			versionQuote = quote
 			parts := strings.Split(oldVersion, ".")
 			if len(parts) != 3 {
 				return fmt.Errorf("неверный формат SemVer %q в %q", oldVersion, path)
@@ -105,7 +122,11 @@ func BumpVersion(path string, bumpLevel string) error {
 				return fmt.Errorf("неверный уровень bump %q, ожидаются patch/minor/major", bumpLevel)
 			}
 			newVersion := fmt.Sprintf("%d.%d.%d", major, minor, patch)
-			lines[i] = versionPrefix + "$VERSION = " + versionQuote + newVersion + versionQuote + ";"
+			suffix := ";"
+			if strings.Contains(operator, "=>") {
+				suffix = ","
+			}
+			lines[i] = prefix + operator + " " + quote + newVersion + quote + suffix
 			versionUpdated = true
 			break
 		}
@@ -114,9 +135,13 @@ func BumpVersion(path string, bumpLevel string) error {
 	// Обновляем VERSION_DATE
 	newDate := time.Now().Format("2006-01-02 15:04:05")
 	for i, line := range lines {
-		prefix, quote, _, ok := parseAssign(line, "VERSION_DATE")
+		prefix, operator, quote, _, ok := parseAssign(line, "VERSION_DATE")
 		if ok {
-			lines[i] = prefix + "$VERSION_DATE = " + quote + newDate + quote + ";"
+			suffix := ";"
+			if strings.Contains(operator, "=>") {
+				suffix = ","
+			}
+			lines[i] = prefix + operator + " " + quote + newDate + quote + suffix
 			dateUpdated = true
 			break
 		}

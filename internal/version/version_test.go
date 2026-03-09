@@ -36,6 +36,26 @@ $VERSION_DATE = '2024-01-01 00:00:00';`,
 			want:    "3.0.0",
 		},
 		{
+			name: "array style",
+			content: `<?
+$arModuleVersion = array(
+	"VERSION" => "2026.2.0",
+	"VERSION_DATE" => "2026-02-25 00:00:00",
+);
+?>`,
+			want: "2026.2.0",
+		},
+		{
+			name: "array style single quote",
+			content: `<?
+$arModuleVersion = array(
+	'VERSION' => '1.2.3',
+	'VERSION_DATE' => '2026-02-25 00:00:00',
+);
+?>`,
+			want: "1.2.3",
+		},
+		{
 			name: "no version",
 			content: `<?php
 $VERSION_DATE = '2024-01-01';
@@ -102,6 +122,17 @@ $VERSION = "0.9.9";
 $VERSION_DATE = '2024-01-01 00:00:00';
 ?>`,
 			wantVer: "1.0.0",
+		},
+		{
+			name:      "array style bump",
+			bumpLevel: "minor",
+			content: `<?
+$arModuleVersion = array(
+	"VERSION" => "1.2.3",
+	"VERSION_DATE" => "2024-01-01 00:00:00",
+);
+?>`,
+			wantVer: "1.3.0",
 		},
 	}
 	for _, tt := range tests {
