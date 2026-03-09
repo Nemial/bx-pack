@@ -20,6 +20,7 @@ const (
 type Reporter interface {
 	SetCommand(command string)
 	PrintIssues(issues []validate.Issue) error
+	PrintValidationResult(issues []validate.Issue) error
 	PrintSummary(archivePath string) error
 	PrintConfigError(err error) error
 	PrintSuccess(msg string) error
@@ -45,18 +46,29 @@ func (r *textReporter) SetCommand(command string) {
 }
 
 func (r *textReporter) PrintIssues(issues []validate.Issue) error {
+	for _, issue := range issues {
+		if issue.Severity == validate.Error {
+			fmt.Fprintln(r.err, issue.String())
+		} else if issue.Severity == validate.Warning {
+			fmt.Fprintln(r.w, issue.String())
+		}
+	}
+	return nil
+}
+
+func (r *textReporter) PrintValidationResult(issues []validate.Issue) error {
 	errorsCount := 0
 	warningsCount := 0
 
 	for _, issue := range issues {
 		if issue.Severity == validate.Error {
-			fmt.Fprintln(r.err, issue.String())
 			errorsCount++
 		} else if issue.Severity == validate.Warning {
-			fmt.Fprintln(r.w, issue.String())
 			warningsCount++
 		}
 	}
+
+	_ = r.PrintIssues(issues)
 
 	if len(issues) > 0 {
 		fmt.Fprintf(r.w, "\nИтог: Валидация завершена. Ошибок: %d, предупреждений: %d.\n", errorsCount, warningsCount)
@@ -168,6 +180,10 @@ func (r *jsonReporter) PrintIssues(issues []validate.Issue) error {
 	return nil
 }
 
+func (r *jsonReporter) PrintValidationResult(issues []validate.Issue) error {
+	return r.PrintIssues(issues)
+}
+
 func (r *jsonReporter) PrintSummary(archivePath string) error {
 	r.report.ArchivePath = archivePath
 	r.report.Summary = fmt.Sprintf("Архив создан: %s", archivePath)
@@ -229,11 +245,6 @@ func NewReporterWithWriter(format Format, w, err io.Writer) Reporter {
 	default:
 		return NewTextReporter(w, err)
 	}
-}
-
-func IsJSON(r Reporter) bool {
-	_, ok := r.(*jsonReporter)
-	return ok
 }
 
 func (r *jsonReporter) String() string { return "JSONReporter" }

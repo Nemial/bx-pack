@@ -28,11 +28,7 @@ func Init(reporter report.Reporter) error {
 		return NewCLIError(ExitConfigErr, err)
 	}
 
-	if !report.IsJSON(reporter) {
-		reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
-	} else {
-		reporter.PrintSuccess(fmt.Sprintf("Создан шаблон %s", config.DefaultConfigPath))
-	}
+	reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
 	return nil
 }
 
@@ -66,9 +62,7 @@ func Validate(reporter report.Reporter) error {
 	}
 
 	issues := validate.Run(cfg)
-	if !report.IsJSON(reporter) || len(issues) > 0 {
-		reporter.PrintIssues(issues)
-	}
+	reporter.PrintValidationResult(issues)
 
 	for _, issue := range issues {
 		if issue.Severity == validate.Error {
@@ -134,9 +128,7 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	}
 
 	// 2. Prepare staging
-	if !report.IsJSON(reporter) {
-		reporter.PrintInfo("Подготовка временной директории...")
-	}
+	reporter.PrintInfo("Подготовка временной директории...")
 	if err := pack.PrepareStaging(cfg); err != nil {
 		err := fmt.Errorf("подготовка staging: %w", err)
 		reporter.PrintConfigError(err)
@@ -144,9 +136,7 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	}
 
 	// 3. Create archive
-	if !report.IsJSON(reporter) {
-		reporter.PrintInfo("Создание архива...")
-	}
+	reporter.PrintInfo("Создание архива...")
 	archivePath, err = pack.CreateArchive(cfg)
 	if err != nil {
 		err := fmt.Errorf("создание архива: %w", err)

@@ -1,13 +1,14 @@
 package report
 
 import (
-	"bx-pack/internal/config"
-	"bx-pack/internal/validate"
 	"bytes"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
+
+	"bx-pack/internal/config"
+	"bx-pack/internal/validate"
 )
 
 func TestTextReporter_PrintIssues(t *testing.T) {
@@ -70,9 +71,9 @@ func TestTextReporter_PrintIssues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			r := NewTextReporter(&stdout, &stderr)
-			err := r.PrintIssues(tt.issues)
+			err := r.PrintValidationResult(tt.issues)
 			if err != nil {
-				t.Fatalf("PrintIssues failed: %v", err)
+				t.Fatalf("PrintValidationResult failed: %v", err)
 			}
 
 			if got := stdout.String(); got != tt.wantStdout {
@@ -82,6 +83,26 @@ func TestTextReporter_PrintIssues(t *testing.T) {
 				t.Errorf("stderr:\ngot:  %q\nwant: %q", got, tt.wantStderr)
 			}
 		})
+	}
+}
+
+func TestTextReporter_PrintIssues_Simple(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r := NewTextReporter(&stdout, &stderr)
+	issues := []validate.Issue{
+		{Code: "ERR_001", Message: "Error", Severity: validate.Error},
+		{Code: "WARN_001", Message: "Warning", Severity: validate.Warning},
+	}
+	r.PrintIssues(issues)
+
+	if !strings.Contains(stderr.String(), "Ошибка проверки: Error (ERR_001)") {
+		t.Errorf("stderr should contain error message, got %q", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Предупреждение: Warning (WARN_001)") {
+		t.Errorf("stdout should contain warning message, got %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "Итог:") {
+		t.Errorf("stdout should NOT contain summary in PrintIssues, got %q", stdout.String())
 	}
 }
 
