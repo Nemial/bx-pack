@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestApplyDefaults(t *testing.T) {
@@ -75,5 +77,30 @@ func TestGenerateTemplate(t *testing.T) {
 	// Простая проверка на наличие ключевых слов и комментариев
 	if !strings.Contains(template, "module:") || !strings.Contains(template, "build:") || !strings.Contains(template, "#") {
 		t.Error("GenerateTemplate() output does not look like a commented YAML template")
+	}
+
+	// Проверка на наличие конкретных пояснений на русском
+	russianKeywords := []string{
+		"Уникальный идентификатор",
+		"установочными скриптами",
+		"Паттерны для исключения",
+		"Служебные файлы Git",
+	}
+
+	for _, kw := range russianKeywords {
+		if !strings.Contains(template, kw) {
+			t.Errorf("GenerateTemplate() output does not contain expected Russian text: %q", kw)
+		}
+	}
+
+	// Проверка корректности YAML структуры (должна парситься)
+	var cfg Config
+	err := yaml.Unmarshal([]byte(template), &cfg)
+	if err != nil {
+		t.Errorf("GenerateTemplate() output is not valid YAML: %v", err)
+	}
+
+	if cfg.Module.ID == "" {
+		t.Error("GenerateTemplate() output did not contain valid module.id")
 	}
 }
