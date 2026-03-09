@@ -1,20 +1,34 @@
 package scaffold
 
 import (
+	"bytes"
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
 	"bx-pack/internal/config"
 	"bx-pack/internal/report"
 )
 
+//go:embed templates/*
+var templatesFS embed.FS
+
 const (
 	defaultVendor = "myvendor"
 	defaultModule = "module"
 )
+
+type templateData struct {
+	ModuleID       string
+	ClassName      string
+	ClassNameUpper string
+	Namespace      string
+	VersionDate    string
+}
 
 // Run выполняет генерацию базовой структуры модуля.
 func Run(reporter report.Reporter, dryRun bool) error {
@@ -22,18 +36,37 @@ func Run(reporter report.Reporter, dryRun bool) error {
 
 	// Определяем ID модуля (пытаемся взять из текущей папки или дефолт)
 	moduleID := getSuggestedModuleID()
+	data := prepareTemplateData(moduleID)
+
+	filesToGenerate := map[string]string{
+		"install/version.php":       "templates/version.php.tmpl",
+		"install/index.php":         "templates/index.php.tmpl",
+		"lang/ru/install/index.php": "templates/lang_index.php.tmpl",
+		"lib/example.php":           "templates/example_lib.php.tmpl",
+	}
 
 	files := map[string]string{
-		config.DefaultConfigPath:    generateConfigTemplate(moduleID),
-		"install/version.php":       generateVersionPHP(),
-		"install/index.php":         generateIndexPHP(moduleID),
-		"lang/ru/install/index.php": generateLangIndexPHP(moduleID),
-		"lib/example.php":           generateExampleLib(moduleID),
-		"admin/menu.php":            "<?php\n// Меню административной панели\nreturn [];\n",
-		"include.php":               "<?php\n// Подключение автозагрузки или констант модуля\n",
-		"prolog.php":                "<?php\n// Пре-инициализация\ndefine('ADMIN_MODULE_NAME', '" + moduleID + "');\n",
-		"default_option.php":        "<?php\n$ " + strings.ReplaceAll(moduleID, ".", "_") + "_default_option = [\n];\n",
-		"options.php":               "<?php\n// Настройки модуля в административной панели\n",
+		"admin/menu.php":     "<?php\n// Меню административной панели\nreturn [];\n",
+		"include.php":        "<?php\n// Подключение автозагрузки или констант модуля\n",
+		"prolog.php":         "<?php\n// Пре-инициализация\ndefine('ADMIN_MODULE_NAME', '" + moduleID + "');\n",
+		"default_option.php": "<?php\n$ " + strings.ReplaceAll(moduleID, ".", "_") + "_default_option = [\n];\n",
+		"options.php":        "<?php\n// Настройки модуля в административной панели\n",
+	}
+
+	// Генерируем конфиг через config пакет
+	configContent, err := config.GenerateForModuleID(moduleID)
+	if err != nil {
+		return fmt.Errorf("ошибка генерации конфига: %w", err)
+	}
+	files[config.DefaultConfigPath] = configContent
+
+	// Рендерим остальные шаблоны
+	for path, tmplPath := range filesToGenerate {
+		content, err := renderTemplate(tmplPath, data)
+		if err != nil {
+			return fmt.Errorf("ошибка рендеринга шаблона %s: %w", tmplPath, err)
+		}
+		files[path] = content
 	}
 
 	dirs := []string{
@@ -57,6 +90,9 @@ func Run(reporter report.Reporter, dryRun bool) error {
 			return fmt.Errorf("ошибка создания директории %s: %w", dir, err)
 		}
 	}
+
+	// Сортируем ключи для детерминированного вывода (опционально, но полезно для тестов)
+	// Но здесь map, порядок не гарантирован.
 
 	for path, content := range files {
 		if dryRun {
@@ -102,93 +138,38 @@ func getSuggestedModuleID() string {
 	return defaultVendor + "." + base
 }
 
-func generateConfigTemplate(moduleID string) string {
-	tmpl := config.GenerateTemplate()
-	// Заменяем дефолтный ID в шаблоне на предложенный
-	return strings.Replace(tmpl, `id: "myvendor.my-module"`, fmt.Sprintf(`id: %q`, moduleID), 1)
-}
-
-func generateVersionPHP() string {
-	now := time.Now().Format("2006-01-02 15:04:05")
-	return fmt.Sprintf(`<?php
-$arModuleVersion = [
-    "VERSION" => "0.1.0",
-    "VERSION_DATE" => "%s",
-];
-`, now)
-}
-
-func generateIndexPHP(moduleID string) string {
+func prepareTemplateData(moduleID string) templateData {
 	className := strings.ReplaceAll(moduleID, ".", "_")
-	langName := "GetMessage('" + strings.ToUpper(className) + "_MODULE_NAME')"
-	langDesc := "GetMessage('" + strings.ToUpper(className) + "_MODULE_DESC')"
-
-	return fmt.Sprintf(`<?php
-use Bitrix\Main\Localization\Loc;
-use Bitrix\Main\ModuleManager;
-
-Loc::loadMessages(__FILE__);
-
-class %s extends CModule
-{
-    public $MODULE_ID = '%s';
-    public $MODULE_VERSION;
-    public $MODULE_VERSION_DATE;
-    public $MODULE_NAME;
-    public $MODULE_DESCRIPTION;
-
-    public function __construct()
-    {
-        $arModuleVersion = [];
-        include(__DIR__ . "/version.php");
-
-        $this->MODULE_VERSION = $arModuleVersion["VERSION"];
-        $this->MODULE_VERSION_DATE = $arModuleVersion["VERSION_DATE"];
-        $this->MODULE_NAME = %s;
-        $this->MODULE_DESCRIPTION = %s;
-
-        $this->PARTNER_NAME = "My Vendor";
-        $this->PARTNER_URI = "https://example.com";
-    }
-
-    public function DoInstall()
-    {
-        ModuleManager::registerModule($this->MODULE_ID);
-    }
-
-    public function DoUninstall()
-    {
-        ModuleManager::unRegisterModule($this->MODULE_ID);
-    }
-}
-`, className, moduleID, langName, langDesc)
-}
-
-func generateLangIndexPHP(moduleID string) string {
-	className := strings.ToUpper(strings.ReplaceAll(moduleID, ".", "_"))
-	return fmt.Sprintf(`<?php
-$MESS["%s_MODULE_NAME"] = "Название модуля %s";
-$MESS["%s_MODULE_DESC"] = "Описание модуля %s";
-`, className, moduleID, className, moduleID)
-}
-
-func generateExampleLib(moduleID string) string {
 	parts := strings.Split(moduleID, ".")
-	namespace := ""
+	var namespaceParts []string
 	for _, p := range parts {
-		namespace += strings.Title(p) + "\\"
+		namespaceParts = append(namespaceParts, strings.Title(p))
 	}
-	namespace = strings.TrimSuffix(namespace, "\\")
 
-	return fmt.Sprintf(`<?php
-namespace %s;
-
-class Example
-{
-    public static function doSomething()
-    {
-        return "Hello from %s";
-    }
+	return templateData{
+		ModuleID:       moduleID,
+		ClassName:      className,
+		ClassNameUpper: strings.ToUpper(className),
+		Namespace:      strings.Join(namespaceParts, "\\"),
+		VersionDate:    time.Now().Format("2006-01-02 15:04:05"),
+	}
 }
-`, namespace, moduleID)
+
+func renderTemplate(tmplPath string, data templateData) (string, error) {
+	tmplContent, err := templatesFS.ReadFile(tmplPath)
+	if err != nil {
+		return "", err
+	}
+
+	tmpl, err := template.New(tmplPath).Parse(string(tmplContent))
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }

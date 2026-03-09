@@ -1,12 +1,18 @@
 package config
 
 import (
+	"bytes"
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/template"
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed templates/config.yml.tmpl
+var templatesFS embed.FS
 
 const DefaultConfigPath = ".bxpack.yml"
 
@@ -139,56 +145,34 @@ func (cfg *Config) NormalizePaths() error {
 }
 
 func GenerateTemplate() string {
-	return `# .bxpack.yml - Конфигурация для bx-pack
-# Используется для сборки и валидации модулей Bitrix.
+	data, err := templatesFS.ReadFile("templates/config.yml.tmpl")
+	if err != nil {
+		// В случае ошибки возвращаем пустую строку или паникуем,
+		// так как это встроенный ресурс, который обязан быть.
+		return ""
+	}
+	// Мы возвращаем "сырой" шаблон, так как Init его сохраняет как есть.
+	// Scaffold же сделает замену moduleID сам, либо мы добавим параметры.
+	return string(data)
+}
 
-# Раздел описания модуля
-module:
-  # Уникальный идентификатор модуля (например, "vendor.module.name").
-  # Должен состоять из строчных латинских букв, цифр, точек и дефисов.
-  id: "myvendor.my-module"
+// GenerateForModuleID генерирует конфиг с подставленным moduleID.
+func GenerateForModuleID(moduleID string) (string, error) {
+	tmplContent := GenerateTemplate()
+	if tmplContent == "" {
+		return "", fmt.Errorf("config template not found")
+	}
 
-  # Версия модуля в формате SemVer (например, 1.0.0, 2.1.0-beta).
-  # Можно оставить пустым для автоопределения из install/version.php.
-  version: ""
+	tmpl, err := template.New("config").Parse(tmplContent)
+	if err != nil {
+		return "", err
+	}
 
-  # Схема версионирования (semver, calver, year-semver, custom).
-  # По умолчанию используется "semver".
-  versionScheme: "semver"
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, map[string]string{"ModuleID": moduleID})
+	if err != nil {
+		return "", err
+	}
 
-  # Название модуля для отображения в отчетах и архиве.
-  name: "Мой крутой модуль"
-
-  # Директория с установочными скриптами Bitrix (обычно "install").
-  # Будет проверено наличие этой папки в корне проекта.
-  install: "install"
-
-# Настройки сборки
-build:
-  # Корневая директория исходного кода модуля (где находится этот файл).
-  sourceDir: "."
-
-  # Директория, куда будет помещен готовый .zip архив.
-  outputDir: "./dist"
-
-  # Временная директория, используемая в процессе упаковки.
-  stagingDir: "./.bxpack/staging"
-
-  # Шаблон имени архива. Можно использовать {module.id} и {module.version}.
-  archiveName: "{module.id}-{module.version}.zip"
-
-# Паттерны для исключения из сборки. 
-# Можно указывать файлы и директории относительно корня проекта.
-exclude:
-  - ".git"          # Служебные файлы Git
-  - ".idea"         # Настройки JetBrains IDE
-  - ".vscode"       # Настройки VS Code
-  - "node_modules"  # Зависимости Node.js
-  - ".bxpack"       # Служебная папка bx-pack (всегда исключается автоматически)
-  - "dist"          # Папка с результатами сборки (всегда исключается автоматически)
-  - "*.log"         # Лог-файлы
-  - ".DS_Store"     # Служебные файлы macOS
-  - "tests"         # Тесты (если они не должны попасть в модуль)
-  - ".gitignore"    # Файл исключений Git
-`
+	return buf.String(), nil
 }
