@@ -8,6 +8,7 @@ import (
 	"bx-pack/internal/config"
 	"bx-pack/internal/pack"
 	"bx-pack/internal/report"
+	"bx-pack/internal/scaffold"
 	"bx-pack/internal/validate"
 	"bx-pack/internal/version"
 )
@@ -33,6 +34,10 @@ func Init(reporter report.Reporter) error {
 		reporter.PrintSuccess(fmt.Sprintf("Создан шаблон %s", config.DefaultConfigPath))
 	}
 	return nil
+}
+
+func Scaffold(reporter report.Reporter, dryRun bool) error {
+	return scaffold.Run(reporter, dryRun)
 }
 
 func Validate(reporter report.Reporter) error {

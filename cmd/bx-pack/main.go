@@ -76,6 +76,8 @@ func main() {
 	switch command {
 	case "init":
 		err = cli.Init(reporter)
+	case "scaffold":
+		err = cli.Scaffold(reporter, dryRun)
 	case "validate":
 		err = cli.Validate(reporter)
 	case "version":
@@ -132,6 +134,7 @@ func printUsage() {
 	fmt.Println("      --dry-run         Показать план сборки без создания файлов")
 	fmt.Println("\nКоманды:")
 	fmt.Println("  init      Инициализировать новый проект со стандартной конфигурацией")
+	fmt.Println("  scaffold  Создать базовую структуру Bitrix-модуля")
 	fmt.Println("  validate  Проверить конфигурацию проекта")
 	fmt.Println("  build     Собрать архив проекта")
 	fmt.Println("  version show             Показать текущую версию модуля")
