@@ -1,12 +1,13 @@
 package cli
 
 import (
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
 	"bytes"
 	"encoding/json"
 	"os"
 	"testing"
+
+	"bx-pack/internal/config"
+	"bx-pack/internal/report"
 )
 
 func TestJSONOutput_Integration(t *testing.T) {
@@ -73,6 +74,40 @@ func TestJSONOutput_Integration(t *testing.T) {
 		}
 		if res.ArchivePath == "" {
 			t.Error("Expected archivePath to be set")
+		}
+	})
+
+	t.Run("version show command", func(t *testing.T) {
+		versionContent := `<?php
+$VERSION = "2.4.6";
+$VERSION_DATE = "2023-01-01 00:00:00";
+?>`
+		if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		var buf bytes.Buffer
+		reporter := report.NewReporterWithWriter(report.JSONFormat, &buf, &buf)
+
+		err := VersionShow(reporter)
+		if err != nil {
+			t.Fatalf("VersionShow failed: %v\nOutput: %s", err, buf.String())
+		}
+		reporter.Finalize()
+
+		var res report.JSONReport
+		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+			t.Fatalf("Failed to unmarshal JSON output: %v\nOutput: %s", err, buf.String())
+		}
+
+		if res.Command != "version show" {
+			t.Errorf("Expected command 'version show', got %q", res.Command)
+		}
+		if res.Version != "2.4.6" {
+			t.Errorf("Expected version '2.4.6', got %q", res.Version)
+		}
+		if !res.Success {
+			t.Errorf("Expected success true, got false. Errors: %v", res.Errors)
 		}
 	})
 }

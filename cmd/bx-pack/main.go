@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"bx-pack/internal/cli"
 	"bx-pack/internal/report"
@@ -44,30 +45,20 @@ func main() {
 		}
 	}
 
-	// Команда - это первый аргумент, не являющийся флагом
-	var command string
-	var commandFound bool
-	for i := 1; i < len(os.Args); i++ {
-		arg := os.Args[i]
-		if arg == "-f" || arg == "--format" {
-			i++ // пропустить значение
-			continue
+	// Парсим позиционные аргументы для поддержки подкоманд
+	var positionalArgs []string
+	for _, arg := range os.Args[1:] {
+		if !strings.HasPrefix(arg, "-") {
+			positionalArgs = append(positionalArgs, arg)
 		}
-		if arg == "--dry-run" {
-			continue
-		}
-		if arg[0] == '-' {
-			continue // пропустить другие флаги
-		}
-		command = arg
-		commandFound = true
-		break
 	}
 
-	if !commandFound {
+	if len(positionalArgs) == 0 {
 		printUsage()
 		os.Exit(ExitError)
 	}
+
+	command := positionalArgs[0]
 
 	format := report.Format(formatStr)
 	if fShort != "" {
@@ -87,6 +78,35 @@ func main() {
 		err = cli.Init(reporter)
 	case "validate":
 		err = cli.Validate(reporter)
+	case "version":
+		if len(positionalArgs) < 2 {
+			printUsage()
+			os.Exit(ExitError)
+		}
+		subcmd := positionalArgs[1]
+		if subcmd == "show" {
+			if len(positionalArgs) > 2 {
+				printUsage()
+				os.Exit(ExitError)
+			}
+			err = cli.VersionShow(reporter)
+		} else if subcmd == "bump" {
+			if len(positionalArgs) < 3 {
+				printUsage()
+				os.Exit(ExitError)
+			}
+			level := positionalArgs[2]
+			if level != "patch" && level != "minor" && level != "major" {
+				fmt.Fprintf(os.Stderr, "Неизвестный уровень инкремента: %q. Используйте: patch, minor, major\n", level)
+				printUsage()
+				os.Exit(ExitError)
+			}
+			err = cli.VersionBump(reporter, level)
+		} else {
+			fmt.Fprintf(os.Stderr, "Неизвестная подкоманда version: %q\n", subcmd)
+			printUsage()
+			os.Exit(ExitError)
+		}
 	case "build":
 		err = cli.Build(reporter, dryRun)
 	case "help":
@@ -106,7 +126,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Использование: bx-pack [флаги] <команда>")
+	fmt.Println("Использование: bx-pack [флаги] [команда [подкоманда] [аргументы]]")
 	fmt.Println("\nФлаги:")
 	fmt.Println("  -f, --format string   Формат вывода: text (по умолчанию), json")
 	fmt.Println("      --dry-run         Показать план сборки без создания файлов")
@@ -114,5 +134,7 @@ func printUsage() {
 	fmt.Println("  init      Инициализировать новый проект со стандартной конфигурацией")
 	fmt.Println("  validate  Проверить конфигурацию проекта")
 	fmt.Println("  build     Собрать архив проекта")
+	fmt.Println("  version show             Показать текущую версию модуля")
+	fmt.Println("  version bump <patch|minor|major>  Инкрементировать версию SemVer и обновить VERSION_DATE")
 	fmt.Println("  help      Показать это справочное сообщение")
 }

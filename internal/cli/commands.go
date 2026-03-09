@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"bx-pack/internal/config"
 	"bx-pack/internal/pack"
 	"bx-pack/internal/report"
 	"bx-pack/internal/validate"
-	"fmt"
-	"os"
+	"bx-pack/internal/version"
 )
 
 func Init(reporter report.Reporter) error {
@@ -121,5 +124,56 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	}
 
 	reporter.PrintSummary(archivePath)
+	return nil
+}
+
+func VersionShow(reporter report.Reporter) error {
+	reporter.SetCommand("version show")
+	cfg, err := config.Load(config.DefaultConfigPath)
+	if err != nil {
+		reporter.PrintConfigError(fmt.Errorf("загрузка конфигурации: %w", err))
+		return err
+	}
+	cfg = config.ApplyDefaults(cfg)
+
+	installPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install)
+	versionFile := filepath.Join(installPath, "version.php")
+
+	if _, err := os.Stat(versionFile); err != nil {
+		if os.IsNotExist(err) {
+			err = fmt.Errorf("файл версии не найден: %s (проверьте module.install в конфиге)", versionFile)
+		} else {
+			err = fmt.Errorf("ошибка доступа к файлу версии %s: %w", versionFile, err)
+		}
+		reporter.PrintConfigError(err)
+		return err
+	}
+
+	ver, err := version.ParseVersion(versionFile)
+	if err != nil {
+		reporter.PrintConfigError(fmt.Errorf("чтение версии: %w", err))
+		return err
+	}
+	reporter.PrintVersion(ver)
+	return nil
+}
+
+func VersionBump(reporter report.Reporter, bumpLevel string) error {
+	reporter.SetCommand(fmt.Sprintf("version bump %s", bumpLevel))
+	cfg, err := config.Load(config.DefaultConfigPath)
+	if err != nil {
+		reporter.PrintConfigError(err)
+		return err
+	}
+	cfg = config.ApplyDefaults(cfg)
+	path := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
+	if err := version.BumpVersion(path, bumpLevel); err != nil {
+		reporter.PrintConfigError(fmt.Errorf("обновление версии: %w", err))
+		return err
+	}
+	reporter.PrintSuccess("Версия успешно обновлена")
+	// Показать новую версию
+	ver, _ := version.ParseVersion(path)
+	reporter.PrintSuccess(fmt.Sprintf("Новая версия: %s", ver))
 	return nil
 }

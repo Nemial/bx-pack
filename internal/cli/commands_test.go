@@ -1,11 +1,12 @@
 package cli
 
 import (
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"bx-pack/internal/config"
+	"bx-pack/internal/report"
 )
 
 func TestInit_Integration(t *testing.T) {
@@ -130,5 +131,52 @@ func TestValidate_Integration(t *testing.T) {
 	err := Validate(reporter)
 	if err == nil {
 		t.Error("Validate should fail for default config")
+	}
+}
+
+func TestVersionShow_Integration(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origWd)
+
+	// 1. Success case
+	cfg := config.Default()
+	cfg.Module.Install = "install"
+	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Mkdir("install", 0755); err != nil {
+		t.Fatal(err)
+	}
+	versionContent := `<?php
+$VERSION = "1.2.3";
+$VERSION_DATE = "2023-01-01 00:00:00";
+?>`
+	if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	reporter := report.NewReporter(report.TextFormat)
+	err := VersionShow(reporter)
+	if err != nil {
+		t.Fatalf("VersionShow failed: %v", err)
+	}
+
+	// 2. Missing file case
+	os.Remove("install/version.php")
+	err = VersionShow(reporter)
+	if err == nil {
+		t.Error("VersionShow should fail if version file is missing")
+	}
+
+	// 3. Invalid file case
+	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err = VersionShow(reporter)
+	if err == nil {
+		t.Error("VersionShow should fail if version file is invalid")
 	}
 }

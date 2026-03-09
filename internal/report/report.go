@@ -25,6 +25,7 @@ type Reporter interface {
 	PrintSuccess(msg string) error
 	PrintInfo(msg string) error
 	PrintDryRunPlan(cfg config.Config, archivePath string) error
+	PrintVersion(version string) error
 	Finalize() error
 }
 
@@ -103,6 +104,11 @@ func (r *textReporter) PrintDryRunPlan(cfg config.Config, archivePath string) er
 	return nil
 }
 
+func (r *textReporter) PrintVersion(version string) error {
+	fmt.Fprintf(r.w, "Версия модуля: %s\n", version)
+	return nil
+}
+
 func (r *textReporter) Finalize() error {
 	return nil
 }
@@ -114,6 +120,7 @@ type JSONReport struct {
 	Warnings    []string         `json:"warnings,omitzero"`
 	Findings    []validate.Issue `json:"findings,omitzero"`
 	Summary     string           `json:"summary,omitzero"`
+	Version     string           `json:"version,omitzero"`
 	ArchivePath string           `json:"archivePath,omitzero"`
 	DryRun      bool             `json:"dryRun"`
 }
@@ -178,6 +185,12 @@ func (r *jsonReporter) PrintDryRunPlan(cfg config.Config, archivePath string) er
 	r.report.DryRun = true
 	r.report.ArchivePath = archivePath
 	r.report.Summary = "Dry run completed successfully"
+	return nil
+}
+
+func (r *jsonReporter) PrintVersion(version string) error {
+	r.report.Version = version
+	r.report.Summary = fmt.Sprintf("Версия модуля: %s", version)
 	return nil
 }
 
