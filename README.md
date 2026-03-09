@@ -139,6 +139,42 @@ bx-pack validate -f json > reports/validation.json
 }
 ```
 
+### Коды валидации
+
+Эти коды используются в поле `findings[].Code` JSON-отчета и выводе `validate` для удобства CI/CD.
+
+| Код                             | Уровень | Пример сообщения                                                       |
+|---------------------------------|---------|------------------------------------------------------------------------|
+| `MODULE_ID_INVALID`             | ERROR   | module.id должен быть установлен в значение, отличное от стандартного  |
+| `MODULE_VERSION_REQUIRED`       | ERROR   | поле module.version обязательно для заполнения                         |
+| `MODULE_VERSION_INVALID`        | ERROR   | module.version не соответствует формату семантического версионирования |
+| `MODULE_NAME_REQUIRED`          | WARNING | поле module.name обязательно для заполнения                            |
+| `MODULE_INSTALL_REQUIRED`       | ERROR   | поле module.install обязательно для заполнения                         |
+| `MODULE_INSTALL_NOT_FOUND`      | ERROR   | директория установки не найдена                                        |
+| `MODULE_INSTALL_STAT_ERROR`     | WARNING | ошибка при проверке директории установки                               |
+| `MODULE_INSTALL_NOT_DIR`        | ERROR   | путь установки должен быть директорией                                 |
+| `BUILD_SOURCE_DIR_REQUIRED`     | ERROR   | поле build.sourceDir обязательно для заполнения                        |
+| `BUILD_SOURCE_DIR_NOT_FOUND`    | ERROR   | исходная директория не найдена                                         |
+| `BUILD_SOURCE_DIR_STAT_ERROR`   | WARNING | ошибка при проверке исходной директории                                |
+| `BUILD_SOURCE_DIR_NOT_DIR`      | ERROR   | исходный путь должен быть директорией                                  |
+| `BUILD_OUTPUT_DIR_REQUIRED`     | ERROR   | поле build.outputDir обязательно для заполнения                        |
+| `OUTPUT_DIR_EQUALS_SOURCE_DIR`  | ERROR   | outputDir не должен совпадать с sourceDir                              |
+| `BUILD_STAGING_DIR_REQUIRED`    | ERROR   | поле build.stagingDir обязательно для заполнения                       |
+| `STAGING_DIR_EQUALS_OUTPUT_DIR` | ERROR   | stagingDir не должен совпадать с outputDir                             |
+| `STAGING_DIR_EQUALS_SOURCE_DIR` | ERROR   | stagingDir не должен совпадать с sourceDir                             |
+| `BUILD_ARCHIVE_NAME_REQUIRED`   | ERROR   | поле build.archiveName обязательно для заполнения                      |
+| `EXCLUDE_PATTERN_EMPTY`         | WARNING | в списке exclude не должно быть пустых строк                           |
+| `FORBIDDEN_PATH_FOUND`          | WARNING | обнаружен запрещенный путь в исходниках                                |
+| `FORBIDDEN_PATH_SCAN_ERROR`     | WARNING | ошибка при сканировании запрещенных путей                              |
+
+### Коды выхода
+
+| Код | Описание                                                                          |
+|-----|-----------------------------------------------------------------------------------|
+| `0` | Успех: все проверки пройдены, команда выполнена без ошибок.                       |
+| `1` | Ошибка CLI: неизвестная команда, неверный формат аргументов.                      |
+| `2` | Ошибка валидации или выполнения: найдены ошибки в конфиге/модуле или сбой сборки. |
+
 ## Требования
 - Go 1.25 или выше (для самостоятельной сборки).
 - Соответствие структуры модуля стандартам 1С-Битрикс.

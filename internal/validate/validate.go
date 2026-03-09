@@ -23,6 +23,30 @@ const (
 	Info    Severity = "INFO"
 )
 
+const (
+	CodeModuleIDInvalid           string = "MODULE_ID_INVALID"
+	CodeModuleVersionRequired     string = "MODULE_VERSION_REQUIRED"
+	CodeModuleVersionInvalid      string = "MODULE_VERSION_INVALID"
+	CodeModuleNameRequired        string = "MODULE_NAME_REQUIRED"
+	CodeModuleInstallRequired     string = "MODULE_INSTALL_REQUIRED"
+	CodeModuleInstallNotFound     string = "MODULE_INSTALL_NOT_FOUND"
+	CodeModuleInstallStatError    string = "MODULE_INSTALL_STAT_ERROR"
+	CodeModuleInstallNotDir       string = "MODULE_INSTALL_NOT_DIR"
+	CodeBuildSourceDirRequired    string = "BUILD_SOURCE_DIR_REQUIRED"
+	CodeBuildSourceDirNotFound    string = "BUILD_SOURCE_DIR_NOT_FOUND"
+	CodeBuildSourceDirStatError   string = "BUILD_SOURCE_DIR_STAT_ERROR"
+	CodeBuildSourceDirNotDir      string = "BUILD_SOURCE_DIR_NOT_DIR"
+	CodeBuildOutputDirRequired    string = "BUILD_OUTPUT_DIR_REQUIRED"
+	CodeOutputDirEqualsSourceDir  string = "OUTPUT_DIR_EQUALS_SOURCE_DIR"
+	CodeBuildStagingDirRequired   string = "BUILD_STAGING_DIR_REQUIRED"
+	CodeStagingDirEqualsOutputDir string = "STAGING_DIR_EQUALS_OUTPUT_DIR"
+	CodeStagingDirEqualsSourceDir string = "STAGING_DIR_EQUALS_SOURCE_DIR"
+	CodeBuildArchiveNameRequired  string = "BUILD_ARCHIVE_NAME_REQUIRED"
+	CodeExcludePatternEmpty       string = "EXCLUDE_PATTERN_EMPTY"
+	CodeForbiddenPathFound        string = "FORBIDDEN_PATH_FOUND"
+	CodeForbiddenPathScanError    string = "FORBIDDEN_PATH_SCAN_ERROR"
+)
+
 type Issue struct {
 	Code     string
 	Message  string
@@ -74,7 +98,7 @@ func Run(cfg config.Config) []Issue {
 func ValidateModuleID(cfg config.Config) []Issue {
 	if cfg.Module.ID == "" || cfg.Module.ID == "example.module" {
 		return []Issue{{
-			Code:     "MODULE_ID_INVALID",
+			Code:     CodeModuleIDInvalid,
 			Message:  "module.id должен быть установлен в значение, отличное от стандартного",
 			Severity: Error,
 		}}
@@ -82,7 +106,7 @@ func ValidateModuleID(cfg config.Config) []Issue {
 
 	if !reModuleID.MatchString(cfg.Module.ID) {
 		return []Issue{{
-			Code:     "MODULE_ID_INVALID",
+			Code:     CodeModuleIDInvalid,
 			Message:  fmt.Sprintf("module.id %q содержит недопустимые символы", cfg.Module.ID),
 			Severity: Error,
 		}}
@@ -93,7 +117,7 @@ func ValidateModuleID(cfg config.Config) []Issue {
 func ValidateModuleVersion(cfg config.Config) []Issue {
 	if cfg.Module.Version == "" {
 		return []Issue{{
-			Code:     "MODULE_VERSION_REQUIRED",
+			Code:     CodeModuleVersionRequired,
 			Message:  "поле module.version обязательно для заполнения",
 			Severity: Error,
 		}}
@@ -101,7 +125,7 @@ func ValidateModuleVersion(cfg config.Config) []Issue {
 
 	if !reModuleVersion.MatchString(cfg.Module.Version) {
 		return []Issue{{
-			Code:     "MODULE_VERSION_INVALID",
+			Code:     CodeModuleVersionInvalid,
 			Message:  fmt.Sprintf("module.version %q не соответствует формату семантического версионирования", cfg.Module.Version),
 			Severity: Error,
 		}}
@@ -112,7 +136,7 @@ func ValidateModuleVersion(cfg config.Config) []Issue {
 func ValidateModuleName(cfg config.Config) []Issue {
 	if cfg.Module.Name == "" {
 		return []Issue{{
-			Code:     "MODULE_NAME_REQUIRED",
+			Code:     CodeModuleNameRequired,
 			Message:  "поле module.name обязательно для заполнения",
 			Severity: Warning,
 		}}
@@ -123,7 +147,7 @@ func ValidateModuleName(cfg config.Config) []Issue {
 func ValidateModuleInstall(cfg config.Config) []Issue {
 	if cfg.Module.Install == "" {
 		return []Issue{{
-			Code:     "MODULE_INSTALL_REQUIRED",
+			Code:     CodeModuleInstallRequired,
 			Message:  "поле module.install обязательно для заполнения",
 			Severity: Error,
 		}}
@@ -134,13 +158,13 @@ func ValidateModuleInstall(cfg config.Config) []Issue {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []Issue{{
-				Code:     "MODULE_INSTALL_NOT_FOUND",
+				Code:     CodeModuleInstallNotFound,
 				Message:  fmt.Sprintf("директория установки %q не найдена", cfg.Module.Install),
 				Severity: Error,
 			}}
 		}
 		return []Issue{{
-			Code:     "MODULE_INSTALL_STAT_ERROR",
+			Code:     CodeModuleInstallStatError,
 			Message:  fmt.Sprintf("ошибка при проверке директории установки %q: %v", cfg.Module.Install, err),
 			Severity: Warning,
 		}}
@@ -148,7 +172,7 @@ func ValidateModuleInstall(cfg config.Config) []Issue {
 
 	if !info.IsDir() {
 		return []Issue{{
-			Code:     "MODULE_INSTALL_NOT_DIR",
+			Code:     CodeModuleInstallNotDir,
 			Message:  fmt.Sprintf("путь установки %q должен быть директорией", cfg.Module.Install),
 			Severity: Error,
 		}}
@@ -160,7 +184,7 @@ func ValidateModuleInstall(cfg config.Config) []Issue {
 func ValidateBuildSourceDir(cfg config.Config) []Issue {
 	if cfg.Build.SourceDir == "" {
 		return []Issue{{
-			Code:     "BUILD_SOURCE_DIR_REQUIRED",
+			Code:     CodeBuildSourceDirRequired,
 			Message:  "поле build.sourceDir обязательно для заполнения",
 			Severity: Error,
 		}}
@@ -170,13 +194,13 @@ func ValidateBuildSourceDir(cfg config.Config) []Issue {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []Issue{{
-				Code:     "BUILD_SOURCE_DIR_NOT_FOUND",
+				Code:     CodeBuildSourceDirNotFound,
 				Message:  fmt.Sprintf("исходная директория %q не найдена", cfg.Build.SourceDir),
 				Severity: Error,
 			}}
 		}
 		return []Issue{{
-			Code:     "BUILD_SOURCE_DIR_STAT_ERROR",
+			Code:     CodeBuildSourceDirStatError,
 			Message:  fmt.Sprintf("ошибка при проверке исходной директории %q: %v", cfg.Build.SourceDir, err),
 			Severity: Warning,
 		}}
@@ -184,7 +208,7 @@ func ValidateBuildSourceDir(cfg config.Config) []Issue {
 
 	if !info.IsDir() {
 		return []Issue{{
-			Code:     "BUILD_SOURCE_DIR_NOT_DIR",
+			Code:     CodeBuildSourceDirNotDir,
 			Message:  fmt.Sprintf("исходный путь %q должен быть директорией", cfg.Build.SourceDir),
 			Severity: Error,
 		}}
@@ -196,7 +220,7 @@ func ValidateBuildSourceDir(cfg config.Config) []Issue {
 func ValidateBuildOutputDir(cfg config.Config) []Issue {
 	if cfg.Build.OutputDir == "" {
 		return []Issue{{
-			Code:     "BUILD_OUTPUT_DIR_REQUIRED",
+			Code:     CodeBuildOutputDirRequired,
 			Message:  "поле build.outputDir обязательно для заполнения",
 			Severity: Error,
 		}}
@@ -207,7 +231,7 @@ func ValidateBuildOutputDir(cfg config.Config) []Issue {
 
 	if absOutput == absSource {
 		return []Issue{{
-			Code:     "OUTPUT_DIR_EQUALS_SOURCE_DIR",
+			Code:     CodeOutputDirEqualsSourceDir,
 			Message:  "outputDir не должен совпадать с sourceDir",
 			Severity: Error,
 		}}
@@ -219,7 +243,7 @@ func ValidateBuildOutputDir(cfg config.Config) []Issue {
 func ValidateBuildStagingDir(cfg config.Config) []Issue {
 	if cfg.Build.StagingDir == "" {
 		return []Issue{{
-			Code:     "BUILD_STAGING_DIR_REQUIRED",
+			Code:     CodeBuildStagingDirRequired,
 			Message:  "поле build.stagingDir обязательно для заполнения",
 			Severity: Error,
 		}}
@@ -232,7 +256,7 @@ func ValidateBuildStagingDir(cfg config.Config) []Issue {
 
 	if absStaging == absOutput {
 		return []Issue{{
-			Code:     "STAGING_DIR_EQUALS_OUTPUT_DIR",
+			Code:     CodeStagingDirEqualsOutputDir,
 			Message:  "stagingDir не должен совпадать с outputDir",
 			Severity: Error,
 		}}
@@ -240,7 +264,7 @@ func ValidateBuildStagingDir(cfg config.Config) []Issue {
 
 	if absStaging == absSource {
 		return []Issue{{
-			Code:     "STAGING_DIR_EQUALS_SOURCE_DIR",
+			Code:     CodeStagingDirEqualsSourceDir,
 			Message:  "stagingDir не должен совпадать с sourceDir",
 			Severity: Error,
 		}}
@@ -252,7 +276,7 @@ func ValidateBuildStagingDir(cfg config.Config) []Issue {
 func ValidateBuildArchiveName(cfg config.Config) []Issue {
 	if cfg.Build.ArchiveName == "" {
 		return []Issue{{
-			Code:     "BUILD_ARCHIVE_NAME_REQUIRED",
+			Code:     CodeBuildArchiveNameRequired,
 			Message:  "поле build.archiveName обязательно для заполнения",
 			Severity: Error,
 		}}
@@ -265,7 +289,7 @@ func ValidateExcludePatterns(cfg config.Config) []Issue {
 	for _, pattern := range cfg.Exclude {
 		if pattern == "" {
 			issues = append(issues, Issue{
-				Code:     "EXCLUDE_PATTERN_EMPTY",
+				Code:     CodeExcludePatternEmpty,
 				Message:  "в списке exclude не должно быть пустых строк",
 				Severity: Warning,
 			})
@@ -336,7 +360,7 @@ func ValidateForbiddenPaths(cfg config.Config) []Issue {
 
 		if isForbidden {
 			issues = append(issues, Issue{
-				Code:     "FORBIDDEN_PATH_FOUND",
+				Code:     CodeForbiddenPathFound,
 				Message:  fmt.Sprintf("обнаружен запрещенный путь в исходниках: %s (рекомендуется добавить в exclude)", relPath),
 				Severity: Warning,
 			})
@@ -350,7 +374,7 @@ func ValidateForbiddenPaths(cfg config.Config) []Issue {
 
 	if err != nil {
 		issues = append(issues, Issue{
-			Code:     "FORBIDDEN_PATH_SCAN_ERROR",
+			Code:     CodeForbiddenPathScanError,
 			Message:  fmt.Sprintf("ошибка при сканировании запрещенных путей: %v", err),
 			Severity: Warning,
 		})
