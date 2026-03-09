@@ -78,35 +78,37 @@ func ParseVersion(path string) (string, error) {
 	return "", fmt.Errorf("строка с $VERSION не найдена в %q", path)
 }
 
-func BumpVersion(path string, bumpLevel string) error {
+func BumpVersion(path string, bumpLevel string) (oldVersion, newVersion string, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("чтение файла %q: %w", path, err)
+		return "", "", fmt.Errorf("чтение файла %q: %w", path, err)
 	}
 	lines := strings.Split(string(data), "\n")
 	var versionUpdated bool
-	var dateUpdated bool
 	bumpLevel = strings.ToLower(bumpLevel)
+
+	var oldVer, newVer string
 
 	// Парсим и обновляем VERSION
 	for i, line := range lines {
-		prefix, operator, quote, oldVersion, ok := parseAssign(line, "VERSION")
+		prefix, operator, quote, val, ok := parseAssign(line, "VERSION")
 		if ok {
-			parts := strings.Split(oldVersion, ".")
+			oldVer = val
+			parts := strings.Split(oldVer, ".")
 			if len(parts) != 3 {
-				return fmt.Errorf("неверный формат SemVer %q в %q", oldVersion, path)
+				return "", "", fmt.Errorf("неверный формат SemVer %q в %q", oldVer, path)
 			}
 			major, err := strconv.Atoi(parts[0])
 			if err != nil {
-				return fmt.Errorf("неверный major в версии %q: %w", oldVersion, err)
+				return "", "", fmt.Errorf("неверный major в версии %q: %w", oldVer, err)
 			}
 			minor, err := strconv.Atoi(parts[1])
 			if err != nil {
-				return fmt.Errorf("неверный minor в версии %q: %w", oldVersion, err)
+				return "", "", fmt.Errorf("неверный minor в версии %q: %w", oldVer, err)
 			}
 			patch, err := strconv.Atoi(parts[2])
 			if err != nil {
-				return fmt.Errorf("неверный patch в версии %q: %w", oldVersion, err)
+				return "", "", fmt.Errorf("неверный patch в версии %q: %w", oldVer, err)
 			}
 			switch bumpLevel {
 			case "patch":
@@ -119,14 +121,14 @@ func BumpVersion(path string, bumpLevel string) error {
 				minor = 0
 				patch = 0
 			default:
-				return fmt.Errorf("неверный уровень bump %q, ожидаются patch/minor/major", bumpLevel)
+				return "", "", fmt.Errorf("неверный уровень bump %q, ожидаются patch/minor/major", bumpLevel)
 			}
-			newVersion := fmt.Sprintf("%d.%d.%d", major, minor, patch)
+			newVer = fmt.Sprintf("%d.%d.%d", major, minor, patch)
 			suffix := ";"
 			if strings.Contains(operator, "=>") {
 				suffix = ","
 			}
-			lines[i] = prefix + operator + " " + quote + newVersion + quote + suffix
+			lines[i] = prefix + operator + " " + quote + newVer + quote + suffix
 			versionUpdated = true
 			break
 		}
@@ -142,21 +144,20 @@ func BumpVersion(path string, bumpLevel string) error {
 				suffix = ","
 			}
 			lines[i] = prefix + operator + " " + quote + newDate + quote + suffix
-			dateUpdated = true
 			break
 		}
 	}
 
 	if !versionUpdated {
-		return fmt.Errorf("строка $VERSION не найдена в %q", path)
-	}
-	if !dateUpdated {
-		return fmt.Errorf("строка $VERSION_DATE не найдена в %q", path)
+		return "", "", fmt.Errorf("строка $VERSION не найдена в %q", path)
 	}
 
-	newData := strings.Join(lines, "\n") + "\n"
-	if err := os.WriteFile(path, []byte(newData), 0644); err != nil {
-		return fmt.Errorf("запись файла %q: %w", path, err)
+	newData := strings.Join(lines, "\n")
+	if !strings.HasSuffix(newData, "\n") {
+		newData += "\n"
 	}
-	return nil
+	if err := os.WriteFile(path, []byte(newData), 0644); err != nil {
+		return "", "", fmt.Errorf("запись файла %q: %w", path, err)
+	}
+	return oldVer, newVer, nil
 }

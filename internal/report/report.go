@@ -26,6 +26,7 @@ type Reporter interface {
 	PrintInfo(msg string) error
 	PrintDryRunPlan(cfg config.Config, archivePath string) error
 	PrintVersion(version string) error
+	PrintVersionBump(oldVersion, newVersion string) error
 	Finalize() error
 }
 
@@ -109,20 +110,27 @@ func (r *textReporter) PrintVersion(version string) error {
 	return nil
 }
 
+func (r *textReporter) PrintVersionBump(oldVersion, newVersion string) error {
+	fmt.Fprintf(r.w, "Версия обновлена: %s -> %s\n", oldVersion, newVersion)
+	return nil
+}
+
 func (r *textReporter) Finalize() error {
 	return nil
 }
 
 type JSONReport struct {
-	Command     string           `json:"command"`
-	Success     bool             `json:"success"`
-	Errors      []string         `json:"errors,omitzero"`
-	Warnings    []string         `json:"warnings,omitzero"`
-	Findings    []validate.Issue `json:"findings,omitzero"`
-	Summary     string           `json:"summary,omitzero"`
-	Version     string           `json:"version,omitzero"`
-	ArchivePath string           `json:"archivePath,omitzero"`
-	DryRun      bool             `json:"dryRun"`
+	Command         string           `json:"command"`
+	Success         bool             `json:"success"`
+	Errors          []string         `json:"errors,omitzero"`
+	Warnings        []string         `json:"warnings,omitzero"`
+	Findings        []validate.Issue `json:"findings,omitzero"`
+	Summary         string           `json:"summary,omitzero"`
+	Version         string           `json:"version,omitzero"`
+	PreviousVersion string           `json:"previousVersion,omitzero"`
+	NewVersion      string           `json:"newVersion,omitzero"`
+	ArchivePath     string           `json:"archivePath,omitzero"`
+	DryRun          bool             `json:"dryRun"`
 }
 
 type jsonReporter struct {
@@ -191,6 +199,13 @@ func (r *jsonReporter) PrintDryRunPlan(cfg config.Config, archivePath string) er
 func (r *jsonReporter) PrintVersion(version string) error {
 	r.report.Version = version
 	r.report.Summary = fmt.Sprintf("Версия модуля: %s", version)
+	return nil
+}
+
+func (r *jsonReporter) PrintVersionBump(oldVersion, newVersion string) error {
+	r.report.PreviousVersion = oldVersion
+	r.report.NewVersion = newVersion
+	r.report.Summary = fmt.Sprintf("Версия обновлена: %s -> %s", oldVersion, newVersion)
 	return nil
 }
 

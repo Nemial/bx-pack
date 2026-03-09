@@ -143,10 +143,16 @@ $arModuleVersion = array(
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = BumpVersion(path, tt.bumpLevel)
+			old, new, err := BumpVersion(path, tt.bumpLevel)
 			if err != nil {
 				t.Errorf("BumpVersion() error = %v", err)
 				return
+			}
+			if old == "" {
+				t.Errorf("BumpVersion() old is empty")
+			}
+			if new != tt.wantVer {
+				t.Errorf("BumpVersion() new = %q, want %q", new, tt.wantVer)
 			}
 			ver, err := ParseVersion(path)
 			if err != nil {

@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"bx-pack/internal/config"
@@ -178,5 +179,60 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 	err = VersionShow(reporter)
 	if err == nil {
 		t.Error("VersionShow should fail if version file is invalid")
+	}
+}
+
+func TestVersionBump_Integration(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origWd)
+
+	cfg := config.Default()
+	cfg.Module.Install = "install"
+	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Mkdir("install", 0755); err != nil {
+		t.Fatal(err)
+	}
+	versionContent := `<?php
+$VERSION = "1.0.0";
+$VERSION_DATE = "2023-01-01 00:00:00";
+?>`
+	if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Patch bump
+	reporter := report.NewReporter(report.TextFormat)
+	err := VersionBump(reporter, "patch")
+	if err != nil {
+		t.Fatalf("VersionBump failed: %v", err)
+	}
+
+	// Verify file updated
+	data, err := os.ReadFile("install/version.php")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `$VERSION = "1.0.1";`) {
+		t.Errorf("version not updated to 1.0.1: %s", string(data))
+	}
+
+	// 2. Invalid bump level
+	err = VersionBump(reporter, "invalid")
+	if err == nil {
+		t.Error("VersionBump should fail for invalid level")
+	}
+
+	// 3. Invalid version format
+	if err := os.WriteFile("install/version.php", []byte(`<?php $VERSION = "1.0"; ?>`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err = VersionBump(reporter, "patch")
+	if err == nil {
+		t.Error("VersionBump should fail for invalid version format")
 	}
 }

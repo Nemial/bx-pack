@@ -110,4 +110,41 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 			t.Errorf("Expected success true, got false. Errors: %v", res.Errors)
 		}
 	})
+
+	t.Run("version bump command", func(t *testing.T) {
+		versionContent := `<?php
+$VERSION = "1.0.0";
+$VERSION_DATE = "2023-01-01 00:00:00";
+?>`
+		if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		var buf bytes.Buffer
+		reporter := report.NewReporterWithWriter(report.JSONFormat, &buf, &buf)
+
+		err := VersionBump(reporter, "patch")
+		if err != nil {
+			t.Fatalf("VersionBump failed: %v\nOutput: %s", err, buf.String())
+		}
+		reporter.Finalize()
+
+		var res report.JSONReport
+		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+			t.Fatalf("Failed to unmarshal JSON output: %v\nOutput: %s", err, buf.String())
+		}
+
+		if res.Command != "version bump patch" {
+			t.Errorf("Expected command 'version bump patch', got %q", res.Command)
+		}
+		if res.PreviousVersion != "1.0.0" {
+			t.Errorf("Expected previousVersion '1.0.0', got %q", res.PreviousVersion)
+		}
+		if res.NewVersion != "1.0.1" {
+			t.Errorf("Expected newVersion '1.0.1', got %q", res.NewVersion)
+		}
+		if !res.Success {
+			t.Errorf("Expected success true, got false. Errors: %v", res.Errors)
+		}
+	})
 }
