@@ -17,20 +17,53 @@ const (
 )
 
 func main() {
-	formatFlag := flag.String("format", "text", "Формат вывода (text, json)")
-	fShort := flag.String("f", "", "Формат вывода (text, json) - сокращенно")
-	flag.Usage = printUsage
-	flag.Parse()
+	var formatStr string
+	var fShort string
 
-	args := flag.Args()
-	if len(args) < 1 {
+	fs := flag.NewFlagSet("bx-pack", flag.ContinueOnError)
+	fs.StringVar(&formatStr, "format", "text", "Формат вывода (text, json)")
+	fs.StringVar(&fShort, "f", "", "Формат вывода (text, json) - сокращенно")
+	fs.Usage = printUsage
+
+	// Сначала собираем все флаги, потом смотрим команду
+	// Но стандартный flag.Parse() прекращает разбор после первого не-флага.
+	// Поэтому мы должны сначала вытащить команду, или разрешить флаги где угодно.
+
+	// Упрощенный вариант: ищем флаг -f или --format во всех аргументах.
+	for i, arg := range os.Args {
+		if arg == "-f" && i+1 < len(os.Args) {
+			fShort = os.Args[i+1]
+		}
+		if arg == "--format" && i+1 < len(os.Args) {
+			formatStr = os.Args[i+1]
+		}
+	}
+
+	// Команда - это первый аргумент, не являющийся флагом
+	var command string
+	var commandFound bool
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		if arg == "-f" || arg == "--format" {
+			i++ // пропустить значение
+			continue
+		}
+		if arg[0] == '-' {
+			continue // пропустить другие флаги
+		}
+		command = arg
+		commandFound = true
+		break
+	}
+
+	if !commandFound {
 		printUsage()
 		os.Exit(ExitError)
 	}
 
-	format := report.Format(*formatFlag)
-	if *fShort != "" {
-		format = report.Format(*fShort)
+	format := report.Format(formatStr)
+	if fShort != "" {
+		format = report.Format(fShort)
 	}
 
 	if format != report.JSONFormat && format != report.TextFormat {
@@ -39,7 +72,6 @@ func main() {
 	}
 
 	reporter := report.NewReporter(format)
-	command := args[0]
 	var err error
 
 	switch command {
@@ -58,11 +90,9 @@ func main() {
 		os.Exit(ExitError)
 	}
 
+	reporter.Finalize()
+
 	if err != nil {
-		// Ошибка уже выведена через репортер внутри функций cli,
-		// или нам нужно вывести ее здесь, если она "внешняя" (например, ошибка конфига)
-		// Для единообразия, CLI функции должны сами выводить свои ошибки через репортер
-		// или мы проверяем тип ошибки.
 		os.Exit(ExitValError)
 	}
 }

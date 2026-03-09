@@ -10,6 +10,7 @@ import (
 )
 
 func Init(reporter report.Reporter) error {
+	reporter.SetCommand("init")
 	if _, err := os.Stat(config.DefaultConfigPath); err == nil {
 		err := fmt.Errorf("файл конфигурации %q уже существует", config.DefaultConfigPath)
 		reporter.PrintConfigError(err)
@@ -23,11 +24,16 @@ func Init(reporter report.Reporter) error {
 		return err
 	}
 
-	reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
+	if !report.IsJSON(reporter) {
+		reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
+	} else {
+		reporter.PrintSuccess(fmt.Sprintf("Создан шаблон %s", config.DefaultConfigPath))
+	}
 	return nil
 }
 
 func Validate(reporter report.Reporter) error {
+	reporter.SetCommand("validate")
 	cfg, err := config.Load(config.DefaultConfigPath)
 	if err != nil {
 		reporter.PrintConfigError(err)
@@ -36,18 +42,28 @@ func Validate(reporter report.Reporter) error {
 	cfg = config.ApplyDefaults(cfg)
 
 	issues := validate.Run(cfg)
-	reporter.PrintIssues(issues)
+	if !report.IsJSON(reporter) || len(issues) > 0 {
+		reporter.PrintIssues(issues)
+	}
 
 	for _, issue := range issues {
 		if issue.Severity == validate.Error {
+			reporter.PrintSuccess("Валидация завершилась с ошибками")
 			return fmt.Errorf("валидация завершилась с ошибками")
 		}
+	}
+
+	if len(issues) == 0 {
+		reporter.PrintSuccess("Валидация прошла успешно")
+	} else {
+		reporter.PrintSuccess("Валидация завершена с предупреждениями")
 	}
 
 	return nil
 }
 
 func Build(reporter report.Reporter) error {
+	reporter.SetCommand("build")
 	cfg, err := config.Load(config.DefaultConfigPath)
 	if err != nil {
 		reporter.PrintConfigError(err)
@@ -57,9 +73,6 @@ func Build(reporter report.Reporter) error {
 
 	// 1. Validate
 	issues := validate.Run(cfg)
-	// Для JSON выводим ошибки только если они есть и мешают сборке,
-	// или если мы хотим видеть весь отчет. В текущей реализации Build
-	// при ошибках возвращает ошибку.
 
 	hasErrors := false
 	for _, issue := range issues {
@@ -80,15 +93,19 @@ func Build(reporter report.Reporter) error {
 	}
 
 	// 2. Prepare staging
-	reporter.PrintInfo("Подготовка временной директории...")
+	if !report.IsJSON(reporter) {
+		reporter.PrintInfo("Подготовка временной директории...")
+	}
 	if err := pack.PrepareStaging(cfg); err != nil {
 		err := fmt.Errorf("подготовка staging: %w", err)
-		reporter.PrintConfigError(err) // Можно использовать PrintConfigError или создать PrintError
+		reporter.PrintConfigError(err)
 		return err
 	}
 
 	// 3. Create archive
-	reporter.PrintInfo("Создание архива...")
+	if !report.IsJSON(reporter) {
+		reporter.PrintInfo("Создание архива...")
+	}
 	archivePath, err := pack.CreateArchive(cfg)
 	if err != nil {
 		err := fmt.Errorf("создание архива: %w", err)

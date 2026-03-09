@@ -91,6 +91,43 @@ bx-pack build
 bx-pack validate -f json > reports/validation.json
 ```
 
+## Формат JSON-вывода
+
+При использовании флага `-f json`, `bx-pack` выводит структурированный JSON-отчет.
+
+### Поля отчета
+- `command` (string): Исполненная команда (`init`, `validate`, `build`).
+- `success` (bool): `true`, если команда завершилась успешно.
+- `errors` (array): Список сообщений о критических ошибках, блокирующих выполнение.
+- `warnings` (array): Список предупреждающих сообщений.
+- `findings` (array): Детальный список всех находок валидатора.
+  - `Code` (string): Уникальный код правила (например, `MODULE_ID_INVALID`).
+  - `Message` (string): Описание проблемы на русском языке.
+  - `Severity` (string): Важность (`ERROR`, `WARNING`, `INFO`).
+- `summary` (string): Краткий текстовый итог операции.
+- `archivePath` (string): Путь к созданному архиву (только для команды `build`).
+- `dryRun` (bool): Флаг тестового запуска без реальных изменений.
+
+### Пример (команда validate)
+```json
+{
+  "command": "validate",
+  "success": false,
+  "errors": [
+    "module.id должен быть установлен в значение, отличное от стандартного"
+  ],
+  "findings": [
+    {
+      "Code": "MODULE_ID_INVALID",
+      "Message": "module.id должен быть установлен в значение, отличное от стандартного",
+      "Severity": "ERROR"
+    }
+  ],
+  "summary": "Валидация завершилась с ошибками",
+  "dryRun": false
+}
+```
+
 ## Требования
 - Go 1.25 или выше (для самостоятельной сборки).
 - Соответствие структуры модуля стандартам 1С-Битрикс.
