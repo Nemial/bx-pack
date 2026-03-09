@@ -89,9 +89,18 @@ bx-pack version show
 
 #### `bump &lt;patch|minor|major&gt;`
 
-Инкрементирует версию по SemVer, обновляет `VERSION_DATE` и перезаписывает файл.
+Инкрементирует версию согласно выбранной схеме (`versionScheme`), обновляет `VERSION_DATE` и перезаписывает файл.
 
-**Примеры:**
+| Схема         | patch                | minor             | major             |
+|---------------|----------------------|-------------------|-------------------|
+| `semver`      | X.Y.(Z+1)            | X.(Y+1).0         | (X+1).0.0         |
+| `calver`      | YYYY.M.(PATCH+1)*    | Не поддерживается | Не поддерживается |
+| `year-semver` | YYYY.MINOR.(PATCH+1) | YYYY.(MINOR+1).0  | Не поддерживается |
+| `custom`      | Не поддерживается    | Не поддерживается | Не поддерживается |
+
+*\*Для calver: если месяц или год изменились, версия становится YYYY.M.0.*
+
+**Примеры (SemVer):**
 
 ```bash
 bx-pack version bump patch   # 1.0.0 → 1.0.1
@@ -119,6 +128,7 @@ bx-pack version bump major   # 1.0.0 → 2.0.0
 module:
   id: "my.company.module"      # Уникальный ID модуля
   version: "1.0.0"             # Версия модуля
+  versionScheme: "semver"      # Схема версионирования (semver, calver, year-semver, custom)
   name: "Мой крутой модуль"    # Название модуля
   install: "install"           # Папка с установочными скриптами
 
@@ -284,6 +294,7 @@ CI/CD.
 | `EXCLUDE_PATTERN_EMPTY`         | WARNING | в списке exclude не должно быть пустых строк                           |
 | `FORBIDDEN_PATH_FOUND`          | WARNING | обнаружен запрещенный путь в исходниках                                |
 | `FORBIDDEN_PATH_SCAN_ERROR`     | WARNING | ошибка при сканировании запрещенных путей                              |
+| `MODULE_VERSION_SCHEME_INVALID` | ERROR   | неизвестная схема версионирования                                      |
 
 ### Коды выхода
 

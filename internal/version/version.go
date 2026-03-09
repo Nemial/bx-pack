@@ -16,6 +16,13 @@ var (
 	dateSingleRE    = regexp.MustCompile(`(.*?)\s*(?:\$VERSION_DATE|'VERSION_DATE')\s*(?:=|=>)\s*'\s*([^']*)\s*'\s*(?:;|,)?\s*`)
 )
 
+const (
+	SchemeSemVer     = "semver"
+	SchemeCalVer     = "calver"
+	SchemeYearSemVer = "year-semver"
+	SchemeCustom     = "custom"
+)
+
 func parseAssign(line, varName string) (prefix, operator, quote, value string, ok bool) {
 	if varName == "VERSION" {
 		for _, re := range []*regexp.Regexp{versionDoubleRE, versionSingleRE} {
@@ -78,7 +85,7 @@ func ParseVersion(path string) (string, error) {
 	return "", fmt.Errorf("строка с $VERSION не найдена в %q", path)
 }
 
-func BumpVersion(path string, bumpLevel string) (oldVersion, newVersion string, err error) {
+func BumpVersion(path string, scheme string, bumpLevel string) (oldVersion, newVersion string, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", "", fmt.Errorf("чтение файла %q: %w", path, err)
@@ -94,36 +101,11 @@ func BumpVersion(path string, bumpLevel string) (oldVersion, newVersion string, 
 		prefix, operator, quote, val, ok := parseAssign(line, "VERSION")
 		if ok {
 			oldVer = val
-			parts := strings.Split(oldVer, ".")
-			if len(parts) != 3 {
-				return "", "", fmt.Errorf("неверный формат SemVer %q в %q", oldVer, path)
-			}
-			major, err := strconv.Atoi(parts[0])
+			newVer, err = calculateNewVersion(oldVer, scheme, bumpLevel)
 			if err != nil {
-				return "", "", fmt.Errorf("неверный major в версии %q: %w", oldVer, err)
+				return "", "", err
 			}
-			minor, err := strconv.Atoi(parts[1])
-			if err != nil {
-				return "", "", fmt.Errorf("неверный minor в версии %q: %w", oldVer, err)
-			}
-			patch, err := strconv.Atoi(parts[2])
-			if err != nil {
-				return "", "", fmt.Errorf("неверный patch в версии %q: %w", oldVer, err)
-			}
-			switch bumpLevel {
-			case "patch":
-				patch++
-			case "minor":
-				minor++
-				patch = 0
-			case "major":
-				major++
-				minor = 0
-				patch = 0
-			default:
-				return "", "", fmt.Errorf("неверный уровень bump %q, ожидаются patch/minor/major", bumpLevel)
-			}
-			newVer = fmt.Sprintf("%d.%d.%d", major, minor, patch)
+
 			suffix := ";"
 			if strings.Contains(operator, "=>") {
 				suffix = ","
@@ -160,4 +142,128 @@ func BumpVersion(path string, bumpLevel string) (oldVersion, newVersion string, 
 		return "", "", fmt.Errorf("запись файла %q: %w", path, err)
 	}
 	return oldVer, newVer, nil
+}
+
+func calculateNewVersion(oldVer, scheme, level string) (string, error) {
+	now := time.Now()
+	switch scheme {
+	case SchemeSemVer:
+		return bumpSemVer(oldVer, level)
+	case SchemeCalVer:
+		if level != "patch" {
+			return "", fmt.Errorf("схема %q поддерживает только bump patch", scheme)
+		}
+		return bumpCalVer(oldVer, now)
+	case SchemeYearSemVer:
+		if level == "major" {
+			return "", fmt.Errorf("схема %q не поддерживает bump major", scheme)
+		}
+		return bumpYearSemVer(oldVer, level, now)
+	case SchemeCustom:
+		return "", fmt.Errorf("автоматический bump не поддерживается для схемы %q", scheme)
+	default:
+		return "", fmt.Errorf("неизвестная схема версионирования: %q", scheme)
+	}
+}
+
+func bumpSemVer(oldVer, level string) (string, error) {
+	parts := strings.Split(oldVer, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("неверный формат SemVer %q", oldVer)
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return "", fmt.Errorf("неверный major в версии %q: %w", oldVer, err)
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("неверный minor в версии %q: %w", oldVer, err)
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return "", fmt.Errorf("неверный patch в версии %q: %w", oldVer, err)
+	}
+
+	switch level {
+	case "patch":
+		patch++
+	case "minor":
+		minor++
+		patch = 0
+	case "major":
+		major++
+		minor = 0
+		patch = 0
+	default:
+		return "", fmt.Errorf("неверный уровень bump %q для semver, ожидаются patch/minor/major", level)
+	}
+	return fmt.Sprintf("%d.%d.%d", major, minor, patch), nil
+}
+
+func bumpCalVer(oldVer string, now time.Time) (string, error) {
+	parts := strings.Split(oldVer, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("неверный формат CalVer %q, ожидается YYYY.M.PATCH", oldVer)
+	}
+
+	year := now.Year()
+	month := int(now.Month())
+
+	oldYear, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return "", fmt.Errorf("неверный год в версии %q: %w", oldVer, err)
+	}
+	oldMonth, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("неверный месяц в версии %q: %w", oldVer, err)
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return "", fmt.Errorf("неверный patch в версии %q: %w", oldVer, err)
+	}
+
+	if year == oldYear && month == oldMonth {
+		patch++
+	} else {
+		patch = 0
+	}
+
+	return fmt.Sprintf("%d.%d.%d", year, month, patch), nil
+}
+
+func bumpYearSemVer(oldVer string, level string, now time.Time) (string, error) {
+	parts := strings.Split(oldVer, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("неверный формат Year-SemVer %q, ожидается YYYY.MINOR.PATCH", oldVer)
+	}
+
+	year := now.Year()
+	oldYear, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return "", fmt.Errorf("неверный год в версии %q: %w", oldVer, err)
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("неверный minor в версии %q: %w", oldVer, err)
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return "", fmt.Errorf("неверный patch в версии %q: %w", oldVer, err)
+	}
+
+	if year != oldYear {
+		return fmt.Sprintf("%d.1.0", year), nil
+	}
+
+	switch level {
+	case "patch":
+		patch++
+	case "minor":
+		minor++
+		patch = 0
+	default:
+		return "", fmt.Errorf("неверный уровень bump %q для year-semver, ожидаются patch/minor", level)
+	}
+
+	return fmt.Sprintf("%d.%d.%d", year, minor, patch), nil
 }

@@ -24,27 +24,28 @@ const (
 )
 
 const (
-	CodeModuleIDInvalid           string = "MODULE_ID_INVALID"
-	CodeModuleVersionRequired     string = "MODULE_VERSION_REQUIRED"
-	CodeModuleVersionInvalid      string = "MODULE_VERSION_INVALID"
-	CodeModuleNameRequired        string = "MODULE_NAME_REQUIRED"
-	CodeModuleInstallRequired     string = "MODULE_INSTALL_REQUIRED"
-	CodeModuleInstallNotFound     string = "MODULE_INSTALL_NOT_FOUND"
-	CodeModuleInstallStatError    string = "MODULE_INSTALL_STAT_ERROR"
-	CodeModuleInstallNotDir       string = "MODULE_INSTALL_NOT_DIR"
-	CodeBuildSourceDirRequired    string = "BUILD_SOURCE_DIR_REQUIRED"
-	CodeBuildSourceDirNotFound    string = "BUILD_SOURCE_DIR_NOT_FOUND"
-	CodeBuildSourceDirStatError   string = "BUILD_SOURCE_DIR_STAT_ERROR"
-	CodeBuildSourceDirNotDir      string = "BUILD_SOURCE_DIR_NOT_DIR"
-	CodeBuildOutputDirRequired    string = "BUILD_OUTPUT_DIR_REQUIRED"
-	CodeOutputDirEqualsSourceDir  string = "OUTPUT_DIR_EQUALS_SOURCE_DIR"
-	CodeBuildStagingDirRequired   string = "BUILD_STAGING_DIR_REQUIRED"
-	CodeStagingDirEqualsOutputDir string = "STAGING_DIR_EQUALS_OUTPUT_DIR"
-	CodeStagingDirEqualsSourceDir string = "STAGING_DIR_EQUALS_SOURCE_DIR"
-	CodeBuildArchiveNameRequired  string = "BUILD_ARCHIVE_NAME_REQUIRED"
-	CodeExcludePatternEmpty       string = "EXCLUDE_PATTERN_EMPTY"
-	CodeForbiddenPathFound        string = "FORBIDDEN_PATH_FOUND"
-	CodeForbiddenPathScanError    string = "FORBIDDEN_PATH_SCAN_ERROR"
+	CodeModuleIDInvalid            string = "MODULE_ID_INVALID"
+	CodeModuleVersionRequired      string = "MODULE_VERSION_REQUIRED"
+	CodeModuleVersionInvalid       string = "MODULE_VERSION_INVALID"
+	CodeModuleNameRequired         string = "MODULE_NAME_REQUIRED"
+	CodeModuleInstallRequired      string = "MODULE_INSTALL_REQUIRED"
+	CodeModuleInstallNotFound      string = "MODULE_INSTALL_NOT_FOUND"
+	CodeModuleInstallStatError     string = "MODULE_INSTALL_STAT_ERROR"
+	CodeModuleInstallNotDir        string = "MODULE_INSTALL_NOT_DIR"
+	CodeBuildSourceDirRequired     string = "BUILD_SOURCE_DIR_REQUIRED"
+	CodeBuildSourceDirNotFound     string = "BUILD_SOURCE_DIR_NOT_FOUND"
+	CodeBuildSourceDirStatError    string = "BUILD_SOURCE_DIR_STAT_ERROR"
+	CodeBuildSourceDirNotDir       string = "BUILD_SOURCE_DIR_NOT_DIR"
+	CodeBuildOutputDirRequired     string = "BUILD_OUTPUT_DIR_REQUIRED"
+	CodeOutputDirEqualsSourceDir   string = "OUTPUT_DIR_EQUALS_SOURCE_DIR"
+	CodeBuildStagingDirRequired    string = "BUILD_STAGING_DIR_REQUIRED"
+	CodeStagingDirEqualsOutputDir  string = "STAGING_DIR_EQUALS_OUTPUT_DIR"
+	CodeStagingDirEqualsSourceDir  string = "STAGING_DIR_EQUALS_SOURCE_DIR"
+	CodeBuildArchiveNameRequired   string = "BUILD_ARCHIVE_NAME_REQUIRED"
+	CodeExcludePatternEmpty        string = "EXCLUDE_PATTERN_EMPTY"
+	CodeForbiddenPathFound         string = "FORBIDDEN_PATH_FOUND"
+	CodeForbiddenPathScanError     string = "FORBIDDEN_PATH_SCAN_ERROR"
+	CodeModuleVersionSchemeInvalid string = "MODULE_VERSION_SCHEME_INVALID"
 )
 
 type Issue struct {
@@ -78,6 +79,7 @@ func Run(cfg config.Config) []Issue {
 	validators := []Validator{
 		ValidateModuleID,
 		ValidateModuleVersion,
+		ValidateModuleVersionScheme,
 		ValidateModuleName,
 		ValidateModuleInstall,
 		ValidateBuildSourceDir,
@@ -123,10 +125,46 @@ func ValidateModuleVersion(cfg config.Config) []Issue {
 		}}
 	}
 
-	if !reModuleVersion.MatchString(cfg.Module.Version) {
+	// Для SemVer используем строгую проверку регулярным выражением
+	if cfg.Module.VersionScheme == "semver" || cfg.Module.VersionScheme == "" {
+		if !reModuleVersion.MatchString(cfg.Module.Version) {
+			return []Issue{{
+				Code:     CodeModuleVersionInvalid,
+				Message:  fmt.Sprintf("module.version %q не соответствует формату семантического версионирования", cfg.Module.Version),
+				Severity: Error,
+			}}
+		}
+	} else {
+		// Для остальных схем проверяем только наличие 3-х сегментов через точку
+		parts := strings.Split(cfg.Module.Version, ".")
+		if len(parts) != 3 {
+			return []Issue{{
+				Code:     CodeModuleVersionInvalid,
+				Message:  fmt.Sprintf("module.version %q должен состоять из 3-х сегментов (напр. 1.0.0)", cfg.Module.Version),
+				Severity: Error,
+			}}
+		}
+	}
+	return nil
+}
+
+func ValidateModuleVersionScheme(cfg config.Config) []Issue {
+	scheme := strings.ToLower(cfg.Module.VersionScheme)
+	if scheme == "" {
+		return nil
+	}
+
+	validSchemes := map[string]bool{
+		"semver":      true,
+		"calver":      true,
+		"year-semver": true,
+		"custom":      true,
+	}
+
+	if !validSchemes[scheme] {
 		return []Issue{{
-			Code:     CodeModuleVersionInvalid,
-			Message:  fmt.Sprintf("module.version %q не соответствует формату семантического версионирования", cfg.Module.Version),
+			Code:     CodeModuleVersionSchemeInvalid,
+			Message:  fmt.Sprintf("неизвестная схема версионирования %q. Доступные: semver, calver, year-semver, custom", cfg.Module.VersionScheme),
 			Severity: Error,
 		}}
 	}

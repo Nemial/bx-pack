@@ -167,7 +167,7 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 	}
 	cfg = config.ApplyDefaults(cfg)
 	path := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
-	oldVer, newVer, err := version.BumpVersion(path, bumpLevel)
+	oldVer, newVer, err := version.BumpVersion(path, cfg.Module.VersionScheme, bumpLevel)
 	if err != nil {
 		reporter.PrintConfigError(fmt.Errorf("обновление версии: %w", err))
 		return err

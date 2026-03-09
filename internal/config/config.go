@@ -17,10 +17,11 @@ type Config struct {
 }
 
 type Module struct {
-	ID      string `yaml:"id" omitzero`
-	Version string `yaml:"version" omitzero`
-	Name    string `yaml:"name" omitzero`
-	Install string `yaml:"install" omitzero`
+	ID            string `yaml:"id" omitzero`
+	Version       string `yaml:"version" omitzero`
+	VersionScheme string `yaml:"versionScheme" omitzero`
+	Name          string `yaml:"name" omitzero`
+	Install       string `yaml:"install" omitzero`
 }
 
 type Build struct {
@@ -40,6 +41,9 @@ func ApplyDefaults(cfg Config) Config {
 	}
 	if cfg.Module.Version == "" {
 		cfg.Module.Version = "1.0.0"
+	}
+	if cfg.Module.VersionScheme == "" {
+		cfg.Module.VersionScheme = "semver"
 	}
 	if cfg.Module.Name == "" {
 		cfg.Module.Name = "Example Module"
@@ -133,6 +137,10 @@ module:
 
   # Версия модуля в формате SemVer (например, 1.0.0, 2.1.0-beta).
   version: "0.1.0"
+
+  # Схема версионирования (semver, calver, year-semver, custom).
+  # По умолчанию используется "semver".
+  versionScheme: "semver"
 
   # Название модуля для отображения в отчетах и архиве.
   name: "Мой крутой модуль"
