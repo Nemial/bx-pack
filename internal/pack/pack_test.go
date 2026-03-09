@@ -2,19 +2,118 @@ package pack
 
 import (
 	"archive/zip"
-	"bx-pack/internal/config"
+	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"bx-pack/internal/config"
 )
+
+func writeTestFiles(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+
+	for path, content := range files {
+		fullPath := filepath.Join(root, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+			t.Fatalf("create parent dir for %q: %v", path, err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+			t.Fatalf("write file %q: %v", path, err)
+		}
+	}
+}
+
+func readArchiveEntries(t *testing.T, archivePath string) map[string]string {
+	t.Helper()
+
+	r, err := zip.OpenReader(archivePath)
+	if err != nil {
+		t.Fatalf("open archive %q: %v", archivePath, err)
+	}
+	defer func() {
+		if err := r.Close(); err != nil {
+			t.Fatalf("close archive %q: %v", archivePath, err)
+		}
+	}()
+
+	entries := make(map[string]string, len(r.File))
+	for _, f := range r.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open archive entry %q: %v", f.Name, err)
+		}
+
+		content, err := io.ReadAll(rc)
+		closeErr := rc.Close()
+		if err != nil {
+			t.Fatalf("read archive entry %q: %v", f.Name, err)
+		}
+		if closeErr != nil {
+			t.Fatalf("close archive entry %q: %v", f.Name, closeErr)
+		}
+
+		entries[f.Name] = string(content)
+	}
+
+	return entries
+}
+
+func readStagedFiles(t *testing.T, stagingDir string) map[string]string {
+	t.Helper()
+
+	entries := make(map[string]string)
+	err := filepath.Walk(stagingDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(stagingDir, path)
+		if err != nil {
+			return err
+		}
+
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		entries[relPath] = string(content)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("read staging %q: %v", stagingDir, err)
+	}
+
+	return entries
+}
+
+func assertExactEntries(t *testing.T, got, want map[string]string) {
+	t.Helper()
+
+	gotKeys := slices.Sorted(maps.Keys(got))
+	wantKeys := slices.Sorted(maps.Keys(want))
+	if !slices.Equal(gotKeys, wantKeys) {
+		t.Fatalf("unexpected entries: got %v, want %v", gotKeys, wantKeys)
+	}
+
+	for path, wantContent := range want {
+		if got[path] != wantContent {
+			t.Errorf("unexpected content for %q: got %q, want %q", path, got[path], wantContent)
+		}
+	}
+}
 
 func TestBuildPipeline(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 1. Setup source directory with files
 	sourceDir := filepath.Join(tempDir, "source")
-	err := os.MkdirAll(sourceDir, 0755)
-	if err != nil {
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -27,20 +126,8 @@ func TestBuildPipeline(t *testing.T) {
 		"nested/excluded_in_nested": "should be excluded",
 		"exclude.txt.bak":           "should NOT be excluded",
 	}
+	writeTestFiles(t, sourceDir, files)
 
-	for path, content := range files {
-		fullPath := filepath.Join(sourceDir, path)
-		err := os.MkdirAll(filepath.Dir(fullPath), 0755)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = os.WriteFile(fullPath, []byte(content), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	// 2. Setup config
 	cfg := config.Default()
 	cfg.Module.ID = "test.module"
 	cfg.Module.Version = "1.2.3"
@@ -54,40 +141,17 @@ func TestBuildPipeline(t *testing.T) {
 		"nested/excluded_in_nested",
 	}
 
-	// 3. Prepare Staging
-	err = PrepareStaging(cfg)
-	if err != nil {
+	if err := PrepareStaging(cfg); err != nil {
 		t.Fatalf("PrepareStaging failed: %v", err)
 	}
 
-	// 4. Verify Staging
-	expectedStaged := []string{
-		"include.txt",
-		"nested/include2.txt",
-		"exclude.txt.bak",
+	expectedEntries := map[string]string{
+		"include.txt":         files["include.txt"],
+		"nested/include2.txt": files["nested/include2.txt"],
+		"exclude.txt.bak":     files["exclude.txt.bak"],
 	}
-	unexpectedStaged := []string{
-		"exclude.txt",
-		"excluded/some.txt",
-		".git/config",
-		"nested/excluded_in_nested",
-	}
+	assertExactEntries(t, readStagedFiles(t, cfg.Build.StagingDir), expectedEntries)
 
-	for _, rel := range expectedStaged {
-		stagedPath := filepath.Join(cfg.Build.StagingDir, rel)
-		if _, err := os.Stat(stagedPath); os.IsNotExist(err) {
-			t.Errorf("expected file %s to be staged, but it's missing", rel)
-		}
-	}
-
-	for _, rel := range unexpectedStaged {
-		stagedPath := filepath.Join(cfg.Build.StagingDir, rel)
-		if _, err := os.Stat(stagedPath); !os.IsNotExist(err) {
-			t.Errorf("expected file %s NOT to be staged, but it's present", rel)
-		}
-	}
-
-	// 5. Create Archive
 	archivePath, err := CreateArchive(cfg)
 	if err != nil {
 		t.Fatalf("CreateArchive failed: %v", err)
@@ -98,29 +162,7 @@ func TestBuildPipeline(t *testing.T) {
 		t.Errorf("expected archive name %s, got %s", expectedArchiveName, filepath.Base(archivePath))
 	}
 
-	// 6. Verify Archive Content
-	r, err := zip.OpenReader(archivePath)
-	if err != nil {
-		t.Fatalf("failed to open archive: %v", err)
-	}
-	defer r.Close()
-
-	archiveFiles := make(map[string]bool)
-	for _, f := range r.File {
-		archiveFiles[f.Name] = true
-	}
-
-	for _, rel := range expectedStaged {
-		if !archiveFiles[rel] {
-			t.Errorf("expected file %s to be in archive, but it's missing", rel)
-		}
-	}
-
-	for _, rel := range unexpectedStaged {
-		if archiveFiles[rel] {
-			t.Errorf("expected file %s NOT to be in archive, but it's present", rel)
-		}
-	}
+	assertExactEntries(t, readArchiveEntries(t, archivePath), expectedEntries)
 }
 
 func TestPrepareStaging_Errors(t *testing.T) {
@@ -159,68 +201,133 @@ func TestPathSafety(t *testing.T) {
 	t.Run("exclude staging and output even if inside source", func(t *testing.T) {
 		tempDir := t.TempDir()
 		sourceDir := filepath.Join(tempDir, "src")
-		os.MkdirAll(sourceDir, 0755)
+		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
 
 		stagingDir := filepath.Join(sourceDir, ".staging")
 		outputDir := filepath.Join(sourceDir, "dist")
 
-		// Create files in source, staging and output
-		os.WriteFile(filepath.Join(sourceDir, "keep.txt"), []byte("keep"), 0644)
-		os.MkdirAll(stagingDir, 0755)
-		os.WriteFile(filepath.Join(stagingDir, "skip-staging.txt"), []byte("skip"), 0644)
-		os.MkdirAll(outputDir, 0755)
-		os.WriteFile(filepath.Join(outputDir, "skip-output.txt"), []byte("skip"), 0644)
+		writeTestFiles(t, sourceDir, map[string]string{"keep.txt": "keep"})
+		writeTestFiles(t, stagingDir, map[string]string{"skip-staging.txt": "skip"})
+		writeTestFiles(t, outputDir, map[string]string{"skip-output.txt": "skip"})
 
 		cfg := config.Default()
 		cfg.Build.SourceDir = sourceDir
 		cfg.Build.StagingDir = stagingDir
 		cfg.Build.OutputDir = outputDir
 
-		err := PrepareStaging(cfg)
-		if err != nil {
+		if err := PrepareStaging(cfg); err != nil {
 			t.Fatalf("PrepareStaging failed: %v", err)
 		}
 
-		// Check what's in staging
-		// Normalize paths for comparison as PrepareStaging might have normalized them in cfg
-		normStagingDir, _ := filepath.Abs(stagingDir)
+		assertExactEntries(t, readStagedFiles(t, cfg.Build.StagingDir), map[string]string{"keep.txt": "keep"})
 
-		files, _ := os.ReadDir(normStagingDir)
-		for _, f := range files {
-			if f.Name() == "skip-staging.txt" || f.Name() == "skip-output.txt" {
-				t.Errorf("found forbidden file in staging: %s", f.Name())
-			}
-			if f.Name() == "dist" || f.Name() == ".staging" {
-				t.Errorf("found forbidden directory in staging: %s", f.Name())
-			}
+		archivePath, err := CreateArchive(cfg)
+		if err != nil {
+			t.Fatalf("CreateArchive failed: %v", err)
 		}
 
-		if _, err := os.Stat(filepath.Join(normStagingDir, "keep.txt")); os.IsNotExist(err) {
-			t.Error("expected keep.txt to be in staging")
+		assertExactEntries(t, readArchiveEntries(t, archivePath), map[string]string{"keep.txt": "keep"})
+	})
+
+	t.Run("exclude internal directories if inside source", func(t *testing.T) {
+		tempDir := t.TempDir()
+		sourceDir := filepath.Join(tempDir, "src")
+		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+			t.Fatal(err)
 		}
+
+		stagingDir := filepath.Join(sourceDir, ".bxpack/staging")
+		outputDir := filepath.Join(sourceDir, "dist")
+
+		writeTestFiles(t, sourceDir, map[string]string{"root.txt": "root"})
+		writeTestFiles(t, stagingDir, map[string]string{"staged.txt": "staged"})
+		writeTestFiles(t, outputDir, map[string]string{"archived.zip": "zip"})
+
+		cfg := config.Default()
+		cfg.Build.SourceDir = sourceDir
+		cfg.Build.StagingDir = stagingDir
+		cfg.Build.OutputDir = outputDir
+
+		if err := PrepareStaging(cfg); err != nil {
+			t.Fatalf("PrepareStaging failed: %v", err)
+		}
+
+		assertExactEntries(t, readStagedFiles(t, cfg.Build.StagingDir), map[string]string{"root.txt": "root"})
+
+		archivePath, err := CreateArchive(cfg)
+		if err != nil {
+			t.Fatalf("CreateArchive failed: %v", err)
+		}
+
+		assertExactEntries(t, readArchiveEntries(t, archivePath), map[string]string{"root.txt": "root"})
+	})
+
+	t.Run("exclude nested directories recursively", func(t *testing.T) {
+		tempDir := t.TempDir()
+		sourceDir := filepath.Join(tempDir, "src")
+		writeTestFiles(t, sourceDir, map[string]string{
+			"a/b/c/keep.txt":        "keep",
+			"a/b/c/keep-too.txt":    "keep-too",
+			"a/b/excluded/skip.txt": "skip",
+			"a/b/excluded/deep.txt": "deep-skip",
+			"a/excluded.txt":        "should stay",
+			"a/b/excluded-file.txt": "should stay too",
+		})
+
+		cfg := config.Default()
+		cfg.Build.SourceDir = sourceDir
+		cfg.Build.StagingDir = filepath.Join(tempDir, "staging")
+		cfg.Build.OutputDir = filepath.Join(tempDir, "dist")
+		cfg.Exclude = []string{"a/b/excluded"}
+
+		if err := PrepareStaging(cfg); err != nil {
+			t.Fatal(err)
+		}
+
+		expectedEntries := map[string]string{
+			"a/b/c/keep.txt":        "keep",
+			"a/b/c/keep-too.txt":    "keep-too",
+			"a/excluded.txt":        "should stay",
+			"a/b/excluded-file.txt": "should stay too",
+		}
+		assertExactEntries(t, readStagedFiles(t, cfg.Build.StagingDir), expectedEntries)
+
+		archivePath, err := CreateArchive(cfg)
+		if err != nil {
+			t.Fatalf("CreateArchive failed: %v", err)
+		}
+
+		assertExactEntries(t, readArchiveEntries(t, archivePath), expectedEntries)
 	})
 
 	t.Run("relative paths normalization", func(t *testing.T) {
 		tempDir := t.TempDir()
-		oldWd, _ := os.Getwd()
-		os.Chdir(tempDir)
-		defer os.Chdir(oldWd)
+		oldWd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("get working dir: %v", err)
+		}
+		if err := os.Chdir(tempDir); err != nil {
+			t.Fatalf("change working dir to temp dir: %v", err)
+		}
+		defer func() {
+			if err := os.Chdir(oldWd); err != nil {
+				t.Fatalf("restore working dir: %v", err)
+			}
+		}()
 
-		os.MkdirAll("src", 0755)
-		os.WriteFile("src/test.txt", []byte("test"), 0644)
+		writeTestFiles(t, filepath.Join(tempDir, "src"), map[string]string{"test.txt": "test"})
 
 		cfg := config.Default()
 		cfg.Build.SourceDir = "./src"
 		cfg.Build.StagingDir = "./.staging"
 		cfg.Build.OutputDir = "./dist"
 
-		err := PrepareStaging(cfg)
-		if err != nil {
+		if err := PrepareStaging(cfg); err != nil {
 			t.Fatalf("PrepareStaging failed: %v", err)
 		}
 
-		if _, err := os.Stat(".staging/test.txt"); os.IsNotExist(err) {
-			t.Error("expected .staging/test.txt to exist")
-		}
+		assertExactEntries(t, readStagedFiles(t, filepath.Join(tempDir, ".staging")), map[string]string{"test.txt": "test"})
 	})
 }
