@@ -24,22 +24,29 @@ var (
 )
 
 func main() {
+	var exitCode int
+	defer func() {
+		os.Exit(exitCode)
+	}()
+
 	rootCmd := &cobra.Command{
 		Use:   "bx-pack",
 		Short: "bx-pack — инструмент для сборки модулей Bitrix",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			format := report.Format(formatStr)
 			if format != report.JSONFormat && format != report.TextFormat {
-				fmt.Fprintf(os.Stderr, "Ошибка: неизвестный формат %q\n", formatStr)
-				os.Exit(ExitError)
+				return cli.NewCLIError(cli.ExitUsageErr, fmt.Errorf("неизвестный формат %q", formatStr))
 			}
 			reporter = report.NewReporter(format)
+			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if reporter != nil {
 				reporter.Finalize()
 			}
 		},
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// Глобальные флаги
@@ -54,7 +61,16 @@ func main() {
 	rootCmd.AddCommand(newVersionCmd())
 
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(ExitError)
+		exitCode = cli.GetExitCode(err)
+		if exitCode == cli.ExitUsageErr {
+			cmd, _, _ := rootCmd.Find(os.Args[1:])
+			if cmd != nil {
+				cmd.Usage()
+			} else {
+				rootCmd.Usage()
+			}
+			fmt.Fprintf(os.Stderr, "\nОшибка: %v\n", err)
+		}
 	}
 }
 
