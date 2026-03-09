@@ -1,0 +1,46 @@
+# Конфигурация с расширенными правилами исключения.
+# Позволяет точно настроить состав архива для сложных проектов.
+
+module:
+  id: "my.enterprise.module"
+  version: "2.1.0"
+  name: "Модуль с расширенными исключениями"
+  install: "install"
+
+build:
+  sourceDir: "."
+  outputDir: "./dist"
+  archiveName: "{module.id}-{module.version}.zip"
+
+exclude:
+  # Системные и служебные файлы
+  - ".git"
+  - ".gitignore"
+  - ".bxpack"
+  - "dist"
+  
+  # IDE и инструменты разработки
+  - ".idea"
+  - ".vscode"
+  - ".editorconfig"
+  
+  # Зависимости и пакеты
+  - "node_modules"
+  - "vendor"
+  
+  # Логи, временные файлы и дампы
+  - "*.log"
+  - "logs"
+  - "tmp"
+  - "*.sql"
+  - "*.bak"
+  
+  # Прочее
+  - "README.md"
+  - "Makefile"
+  - "tests"
+  - "docs"
+  - ".DS_Store"
+  - "Thumbs.db"
+  - ".env"
+  - ".env.example"

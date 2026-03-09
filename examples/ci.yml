@@ -1,0 +1,26 @@
+# Конфигурация для Continuous Integration (CI).
+# Оптимизирована для автоматических сборок (GitHub Actions, GitLab CI, etc.).
+
+module:
+  id: "vendor.ci.module"
+  version: "1.0.0" # Можно подставлять версию динамически через env
+  name: "CI Сборка"
+  install: "install"
+
+build:
+  sourceDir: "."
+  # В CI часто удобнее выводить в корень или специальную папку артефактов
+  outputDir: "./artifacts"
+  # Использование временной папки обязательно для изоляции процессов
+  stagingDir: "/tmp/bxpack-ci"
+  archiveName: "{module.id}.zip"
+
+exclude:
+  - ".git"
+  - ".github"
+  - ".gitlab-ci.yml"
+  - ".bxpack"
+  - "artifacts"
+  - "node_modules"
+  - "vendor"
+  - "tests"

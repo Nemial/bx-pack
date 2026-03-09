@@ -91,6 +91,17 @@ bx-pack build
 bx-pack validate -f json > reports/validation.json
 ```
 
+## Примеры конфигурации
+
+В папке `examples/` представлены готовые шаблоны для различных сценариев:
+
+- [`simple.yml`](examples/simple.yml) — Простой модуль с классической структурой.
+- [`strict.yml`](examples/strict.yml) — Конфигурация для строгого соблюдения стандартов маркетплейса.
+- [`extended_exclude.yml`](examples/extended_exclude.yml) — Пример с расширенным списком исключаемых файлов и папок.
+- [`ci.yml`](examples/ci.yml) — Настройки, оптимизированные для использования в CI (GitHub Actions, GitLab CI).
+
+Вы можете скопировать любой из этих файлов в корень вашего проекта как `.bxpack.yml` и отредактировать под свои нужды.
+
 ## Формат JSON-вывода
 
 При использовании флага `-f json`, `bx-pack` выводит структурированный JSON-отчет.

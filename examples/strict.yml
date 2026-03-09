@@ -1,0 +1,30 @@
+# Конфигурация для строгого соблюдения стандартов.
+# Полезно перед загрузкой в маркетплейс (Bitrix Marketplace).
+
+module:
+  id: "vendor.strict.module"    # Убедитесь, что ID уникален и зарегистрирован
+  version: "1.2.3"              # Только SemVer формат (X.Y.Z)
+  name: "Модуль со строгой проверкой"
+  install: "install"            # Обязательная папка для инсталляции (install/index.php)
+
+build:
+  sourceDir: "."
+  outputDir: "./dist"
+  stagingDir: "./.bxpack/staging" # Рекомендуется использовать staging для чистоты
+  archiveName: "{module.id}-{module.version}.zip" # Стандартное имя архива
+
+exclude:
+  - ".git"
+  - ".idea"
+  - ".vscode"
+  - "node_modules"
+  - ".bxpack"
+  - "dist"
+  - "*.log"
+  - ".DS_Store"
+  - "tests"
+  - ".gitignore"
+  - "composer.json"
+  - "composer.lock"
+  - "package.json"
+  - "package-lock.json"
