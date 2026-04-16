@@ -117,6 +117,14 @@ func PrepareStaging(cfg config.Config) error {
 	})
 }
 
+func GetArchiveBaseName(cfg config.Config) string {
+	archiveName := cfg.Build.ArchiveName
+	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
+	archiveName = strings.ReplaceAll(archiveName, "{module.version}", cfg.Module.Version)
+
+	return strings.TrimSuffix(archiveName, ".zip")
+}
+
 func GetArchivePath(cfg config.Config) string {
 	archiveName := cfg.Build.ArchiveName
 	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
@@ -131,6 +139,7 @@ func CreateArchive(cfg config.Config) (string, error) {
 	}
 
 	archivePath := GetArchivePath(cfg)
+	baseDirName := GetArchiveBaseName(cfg)
 
 	outFile, err := os.Create(archivePath)
 	if err != nil {
@@ -154,7 +163,8 @@ func CreateArchive(cfg config.Config) (string, error) {
 			return err
 		}
 
-		f, err := w.Create(relPath)
+		zipPath := filepath.ToSlash(filepath.Join(baseDirName, relPath))
+		f, err := w.Create(zipPath)
 		if err != nil {
 			return err
 		}
