@@ -162,7 +162,12 @@ func TestBuildPipeline(t *testing.T) {
 		t.Errorf("expected archive name %s, got %s", expectedArchiveName, filepath.Base(archivePath))
 	}
 
-	assertExactEntries(t, readArchiveEntries(t, archivePath), expectedEntries)
+	expectedArchiveEntries := make(map[string]string)
+	baseDir := "test.module-1.2.3"
+	for k, v := range expectedEntries {
+		expectedArchiveEntries[baseDir+"/"+k] = v
+	}
+	assertExactEntries(t, readArchiveEntries(t, archivePath), expectedArchiveEntries)
 }
 
 func TestPrepareStaging_Errors(t *testing.T) {
@@ -228,7 +233,10 @@ func TestPathSafety(t *testing.T) {
 			t.Fatalf("CreateArchive failed: %v", err)
 		}
 
-		assertExactEntries(t, readArchiveEntries(t, archivePath), map[string]string{"keep.txt": "keep"})
+		expectedArchiveEntries := map[string]string{
+			"example.module-/keep.txt": "keep",
+		}
+		assertExactEntries(t, readArchiveEntries(t, archivePath), expectedArchiveEntries)
 	})
 
 	t.Run("exclude internal directories if inside source", func(t *testing.T) {
@@ -261,7 +269,7 @@ func TestPathSafety(t *testing.T) {
 			t.Fatalf("CreateArchive failed: %v", err)
 		}
 
-		assertExactEntries(t, readArchiveEntries(t, archivePath), map[string]string{"root.txt": "root"})
+		assertExactEntries(t, readArchiveEntries(t, archivePath), map[string]string{"example.module-/root.txt": "root"})
 	})
 
 	t.Run("exclude nested directories recursively", func(t *testing.T) {
@@ -299,7 +307,11 @@ func TestPathSafety(t *testing.T) {
 			t.Fatalf("CreateArchive failed: %v", err)
 		}
 
-		assertExactEntries(t, readArchiveEntries(t, archivePath), expectedEntries)
+		expectedArchiveEntries := make(map[string]string)
+		for k, v := range expectedEntries {
+			expectedArchiveEntries["example.module-/"+k] = v
+		}
+		assertExactEntries(t, readArchiveEntries(t, archivePath), expectedArchiveEntries)
 	})
 
 	t.Run("relative paths normalization", func(t *testing.T) {
