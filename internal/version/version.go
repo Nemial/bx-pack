@@ -146,12 +146,23 @@ func BumpVersion(path string, scheme string, bumpLevel string) (oldVersion, newV
 
 func calculateNewVersion(oldVer, scheme, level string) (string, error) {
 	now := time.Now()
+	if level == "auto" {
+		switch scheme {
+		case SchemeSemVer:
+			level = "patch"
+		case SchemeCalVer:
+			level = "patch"
+		case SchemeYearSemVer:
+			level = "patch"
+		}
+	}
+
 	switch scheme {
 	case SchemeSemVer:
 		return bumpSemVer(oldVer, level)
 	case SchemeCalVer:
 		if level != "patch" {
-			return "", fmt.Errorf("схема %q поддерживает только bump patch", scheme)
+			return "", fmt.Errorf("схема %q поддерживает только bump patch или auto", scheme)
 		}
 		return bumpCalVer(oldVer, now)
 	case SchemeYearSemVer:

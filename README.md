@@ -105,9 +105,16 @@ bx-pack version show
 }
 ```
 
-#### `bump &lt;patch|minor|major&gt;`
+#### `bump [patch|minor|major|auto]`
 
 Инкрементирует версию согласно выбранной схеме (`versionScheme`), обновляет `VERSION_DATE` и перезаписывает файл `install/version.php`.
+Если аргумент не указан, используется `auto`.
+
+**Примеры:**
+```bash
+bx-pack version bump        # Автоматический выбор (обычно patch)
+bx-pack version bump minor  # Явное указание minor-версии
+```
 
 **Важно:**
 - Версия в `install/version.php` обновляется всегда.

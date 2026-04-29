@@ -168,6 +168,27 @@ func TestBumpVersion(t *testing.T) {
 			wantErr:   true,
 		},
 		{
+			name:      "semver auto (patch)",
+			scheme:    "semver",
+			bumpLevel: "auto",
+			content:   `<?php $VERSION = "1.2.3"; ?>`,
+			wantVer:   "1.2.4",
+		},
+		{
+			name:      "calver auto (patch)",
+			scheme:    "calver",
+			bumpLevel: "auto",
+			content:   `<?php $VERSION = "2020.1.5"; ?>`,
+			wantVer:   time.Now().Format("2006.1") + ".0",
+		},
+		{
+			name:      "year-semver auto (patch)",
+			scheme:    "year-semver",
+			bumpLevel: "auto",
+			content:   `<?php $VERSION = "2020.2.3"; ?>`,
+			wantVer:   time.Now().Format("2006") + ".1.0",
+		},
+		{
 			name:      "custom bump error",
 			scheme:    "custom",
 			bumpLevel: "patch",

@@ -122,13 +122,17 @@ func newVersionCmd() *cobra.Command {
 	}
 
 	bumpCmd := &cobra.Command{
-		Use:   "bump <patch|minor|major>",
-		Short: "Инкрементировать версию",
-		Args:  cobra.ExactArgs(1),
+		Use:   "bump [patch|minor|major|auto]",
+		Short: "Инкрементировать версию (по умолчанию auto)",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			level := args[0]
-			if level != "patch" && level != "minor" && level != "major" {
-				return fmt.Errorf("неизвестный уровень инкремента: %q", level)
+			level := "auto"
+			if len(args) > 0 {
+				level = args[0]
+			}
+
+			if level != "patch" && level != "minor" && level != "major" && level != "auto" {
+				return fmt.Errorf("неизвестный уровень инкремента: %q. Допустимые: patch, minor, major, auto", level)
 			}
 			return cli.VersionBump(reporter, level)
 		},
