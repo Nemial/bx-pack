@@ -135,6 +135,35 @@ func TestValidate_Integration(t *testing.T) {
 	}
 }
 
+func TestValidate_InvalidVersionFile_Integration(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origWd)
+
+	cfg := config.Default()
+	cfg.Module.ID = "test.invalid.version"
+	cfg.Module.Name = "Test Invalid Version"
+	cfg.Module.Version = ""
+	cfg.Module.Install = "install"
+
+	if err := os.Mkdir("install", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	reporter := report.NewReporter(report.TextFormat)
+	err := Validate(reporter)
+	if err == nil {
+		t.Fatal("Validate should fail for invalid version.php")
+	}
+}
+
 func TestVersionShow_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()

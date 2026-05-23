@@ -44,24 +44,7 @@ func Validate(reporter report.Reporter) error {
 		return NewCLIError(ExitConfigErr, err)
 	}
 
-	// Для валидации, если версия пуста, попробуем ее распарсить чтобы убедиться что файл корректен
-	if cfg.Module.Version == "" {
-		versionPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
-		if _, err := os.Stat(versionPath); err == nil {
-			if _, err := version.ParseVersion(versionPath); err != nil {
-				// Если файл есть, но не парсится - это ошибка валидации версии
-				issues := []validate.Issue{{
-					Code:     validate.CodeModuleVersionInvalid,
-					Message:  fmt.Sprintf("ошибка парсинга версии из %s: %v", versionPath, err),
-					Severity: validate.Error,
-				}}
-				reporter.PrintIssues(issues)
-				return NewCLIError(ExitValError, fmt.Errorf("валидация завершилась с ошибками"))
-			}
-		}
-	}
-
-	issues := validate.Run(cfg)
+	issues := validate.RunWithResolvedVersion(&cfg)
 	reporter.PrintValidationResult(issues)
 
 	for _, issue := range issues {
@@ -88,20 +71,8 @@ func Build(reporter report.Reporter, dryRun bool) error {
 		return NewCLIError(ExitConfigErr, err)
 	}
 
-	// Автоопределение версии, если она не указана в конфиге
-	if cfg.Module.Version == "" {
-		versionPath := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
-		ver, err := version.ParseVersion(versionPath)
-		if err != nil {
-			err = fmt.Errorf("автоопределение версии из %s: %w", versionPath, err)
-			reporter.PrintConfigError(err)
-			return NewCLIError(ExitValError, err)
-		}
-		cfg.Module.Version = ver
-	}
-
 	// 1. Validate
-	issues := validate.Run(cfg)
+	issues := validate.RunWithResolvedVersion(&cfg)
 
 	hasErrors := false
 	for _, issue := range issues {

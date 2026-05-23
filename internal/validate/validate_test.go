@@ -216,6 +216,68 @@ func TestRun(t *testing.T) {
 		}
 	})
 
+	t.Run("version resolved from install version file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		versionContent := `<?php
+$VERSION = "2.3.4";
+$VERSION_DATE = "2026-01-01 00:00:00";
+?>`
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(versionContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Module.Version = ""
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := RunWithResolvedVersion(&cfg)
+		for _, issue := range issues {
+			if issue.Severity == Error {
+				t.Fatalf("unexpected error: %v", issue)
+			}
+		}
+
+		if cfg.Module.Version != "2.3.4" {
+			t.Fatalf("expected resolved version 2.3.4, got %q", cfg.Module.Version)
+		}
+	})
+
+	t.Run("invalid version file returns validation issue", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte("invalid content"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Module.Version = ""
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := RunWithResolvedVersion(&cfg)
+
+		found := false
+		for _, issue := range issues {
+			if issue.Code == "MODULE_VERSION_INVALID" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("expected MODULE_VERSION_INVALID error")
+		}
+	})
+
 	t.Run("forbidden paths excluded", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		if err := os.Mkdir(filepath.Join(tmpDir, ".git"), 0755); err != nil {

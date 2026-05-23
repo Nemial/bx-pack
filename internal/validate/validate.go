@@ -10,6 +10,7 @@ import (
 
 	"bx-pack/internal/config"
 	"bx-pack/internal/pack"
+	"bx-pack/internal/version"
 )
 
 var (
@@ -78,9 +79,10 @@ func Run(cfg config.Config) []Issue {
 	// Нормализация путей перед валидацией, если возможно
 	_ = cfg.NormalizePaths()
 
+	issues := ResolveAndValidateVersion(&cfg)
+
 	validators := []Validator{
 		ValidateModuleID,
-		ValidateModuleVersion,
 		ValidateModuleVersionScheme,
 		ValidateModuleName,
 		ValidateModuleInstall,
@@ -93,8 +95,35 @@ func Run(cfg config.Config) []Issue {
 	}
 
 	var allIssues []Issue
+	allIssues = append(allIssues, issues...)
 	for _, v := range validators {
 		allIssues = append(allIssues, v(cfg)...)
+	}
+	return allIssues
+}
+
+func RunWithResolvedVersion(cfg *config.Config) []Issue {
+	_ = cfg.NormalizePaths()
+
+	issues := ResolveAndValidateVersion(cfg)
+
+	validators := []Validator{
+		ValidateModuleID,
+		ValidateModuleVersionScheme,
+		ValidateModuleName,
+		ValidateModuleInstall,
+		ValidateBuildSourceDir,
+		ValidateBuildOutputDir,
+		ValidateBuildStagingDir,
+		ValidateBuildArchiveName,
+		ValidateExcludePatterns,
+		ValidateForbiddenPaths,
+	}
+
+	var allIssues []Issue
+	allIssues = append(allIssues, issues...)
+	for _, v := range validators {
+		allIssues = append(allIssues, v(*cfg)...)
 	}
 	return allIssues
 }
@@ -119,9 +148,14 @@ func ValidateModuleID(cfg config.Config) []Issue {
 }
 
 func ValidateModuleVersion(cfg config.Config) []Issue {
+	cfgCopy := cfg
+	return ResolveAndValidateVersion(&cfgCopy)
+}
+
+func ResolveAndValidateVersion(cfg *config.Config) []Issue {
 	if cfg.Module.Version == "" {
-		// Если версия не указана в конфиге, она должна быть в install/version.php
 		versionFile := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
+
 		if _, err := os.Stat(versionFile); err != nil {
 			return []Issue{{
 				Code:     CodeModuleVersionRequired,
@@ -129,31 +163,51 @@ func ValidateModuleVersion(cfg config.Config) []Issue {
 				Severity: Error,
 			}}
 		}
-		// Сама валидация содержимого version.php происходит в CLI слое при попытке сборки,
-		// здесь мы только подтверждаем, что "источник версии" доступен.
+
+		resolvedVersion, err := version.ParseVersion(versionFile)
+		if err != nil {
+			return []Issue{{
+				Code:     CodeModuleVersionInvalid,
+				Message:  fmt.Sprintf("ошибка парсинга версии из %s: %v", versionFile, err),
+				Severity: Error,
+			}}
+		}
+
+		cfg.Module.Version = resolvedVersion
+	}
+
+	return validateResolvedVersion(cfg.Module.Version, cfg.Module.VersionScheme)
+}
+
+func validateResolvedVersion(moduleVersion string, versionScheme string) []Issue {
+	if moduleVersion == "" {
+		return []Issue{{
+			Code:     CodeModuleVersionRequired,
+			Message:  "поле module.version обязательно для заполнения",
+			Severity: Error,
+		}}
+	}
+
+	if versionScheme == "semver" || versionScheme == "" {
+		if !reModuleVersion.MatchString(moduleVersion) {
+			return []Issue{{
+				Code:     CodeModuleVersionInvalid,
+				Message:  fmt.Sprintf("module.version %q не соответствует формату семантического версионирования", moduleVersion),
+				Severity: Error,
+			}}
+		}
 		return nil
 	}
 
-	// Для SemVer используем строгую проверку регулярным выражением
-	if cfg.Module.VersionScheme == "semver" || cfg.Module.VersionScheme == "" {
-		if !reModuleVersion.MatchString(cfg.Module.Version) {
-			return []Issue{{
-				Code:     CodeModuleVersionInvalid,
-				Message:  fmt.Sprintf("module.version %q не соответствует формату семантического версионирования", cfg.Module.Version),
-				Severity: Error,
-			}}
-		}
-	} else {
-		// Для остальных схем проверяем только наличие 3-х сегментов через точку
-		parts := strings.Split(cfg.Module.Version, ".")
-		if len(parts) != 3 {
-			return []Issue{{
-				Code:     CodeModuleVersionInvalid,
-				Message:  fmt.Sprintf("module.version %q должен состоять из 3-х сегментов (напр. 1.0.0)", cfg.Module.Version),
-				Severity: Error,
-			}}
-		}
+	parts := strings.Split(moduleVersion, ".")
+	if len(parts) != 3 {
+		return []Issue{{
+			Code:     CodeModuleVersionInvalid,
+			Message:  fmt.Sprintf("module.version %q должен состоять из 3-х сегментов (напр. 1.0.0)", moduleVersion),
+			Severity: Error,
+		}}
 	}
+
 	return nil
 }
 
