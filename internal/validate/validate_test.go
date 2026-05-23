@@ -9,6 +9,37 @@ import (
 	"bx-pack/internal/config"
 )
 
+func writeValidInstallFixture(t *testing.T, rootDir, moduleID, version string) {
+	t.Helper()
+
+	installDir := filepath.Join(rootDir, "install")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(rootDir, "lang", "ru", "install"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	versionContent := "<?php\n" +
+		"$VERSION = \"" + version + "\";\n" +
+		"$VERSION_DATE = \"2026-01-01 00:00:00\";\n" +
+		"?>\n"
+	if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(versionContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	indexContent := "<?php\n" +
+		"$MODULE_ID = \"" + moduleID + "\";\n" +
+		"?>\n"
+	if err := os.WriteFile(filepath.Join(installDir, "index.php"), []byte(indexContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(rootDir, "lang", "ru", "install", "index.php"), []byte("<?php\n$MESS = [];\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRun(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -17,10 +48,7 @@ func TestRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Создаем version.php для прохождения валидации, если версия в конфиге пуста
-		versionContent := `<?php $arModuleVersion = ["VERSION" => "1.0.0"]; ?>`
-		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(versionContent), 0644); err != nil {
-			t.Fatal(err)
-		}
+		writeValidInstallFixture(t, tmpDir, "my.custom.id", "1.0.0")
 
 		cfg := config.Default()
 		cfg.Module.ID = "my.custom.id"
@@ -218,17 +246,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("version resolved from install version file", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		installDir := filepath.Join(tmpDir, "install")
-		if err := os.Mkdir(installDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		versionContent := `<?php
-$VERSION = "2.3.4";
-$VERSION_DATE = "2026-01-01 00:00:00";
-?>`
-		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(versionContent), 0644); err != nil {
-			t.Fatal(err)
-		}
+		writeValidInstallFixture(t, tmpDir, "my.custom.id", "2.3.4")
 
 		cfg := config.Default()
 		cfg.Module.ID = "my.custom.id"
@@ -251,7 +269,19 @@ $VERSION_DATE = "2026-01-01 00:00:00";
 	t.Run("invalid version file returns validation issue", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		installDir := filepath.Join(tmpDir, "install")
-		if err := os.Mkdir(installDir, 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(tmpDir, "install"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(tmpDir, "lang", "ru", "install"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, "install", "version.php"), []byte("invalid content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, "install", "index.php"), []byte("<?php\n$MODULE_ID = \"my.custom.id\";\n?>\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, "lang", "ru", "install", "index.php"), []byte("<?php\n$MESS = [];\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte("invalid content"), 0644); err != nil {
@@ -275,6 +305,178 @@ $VERSION_DATE = "2026-01-01 00:00:00";
 		}
 		if !found {
 			t.Fatal("expected MODULE_VERSION_INVALID error")
+		}
+	})
+
+	t.Run("missing install index file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(`<?php $arModuleVersion = ["VERSION" => "1.0.0", "VERSION_DATE" => "2026-01-01 00:00:00"]; ?>`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := Run(cfg)
+
+		found := false
+		for _, issue := range issues {
+			if issue.Code == CodeModuleInstallIndexNotFound {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("expected MODULE_INSTALL_INDEX_NOT_FOUND error")
+		}
+	})
+
+	t.Run("missing install version file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "index.php"), []byte(`<?php class Test extends CModule { public $MODULE_ID = 'my.custom.id'; }`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Module.Version = "1.0.0"
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := Run(cfg)
+
+		found := false
+		for _, issue := range issues {
+			if issue.Code == CodeModuleInstallVersionNotFound {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("expected MODULE_INSTALL_VERSION_NOT_FOUND error")
+		}
+	})
+
+	t.Run("missing ru install localization file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "index.php"), []byte(`<?php class Test extends CModule { public $MODULE_ID = 'my.custom.id'; }`), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(`<?php $arModuleVersion = ["VERSION" => "1.0.0", "VERSION_DATE" => "2026-01-01 00:00:00"]; ?>`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Module.Version = "1.0.0"
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := Run(cfg)
+
+		found := false
+		for _, issue := range issues {
+			if issue.Code == CodeModuleLangInstallNotFound && issue.Severity == Warning {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("expected MODULE_LANG_INSTALL_NOT_FOUND warning")
+		}
+	})
+
+	t.Run("install module id mismatch", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		langDir := filepath.Join(tmpDir, "lang", "ru", "install")
+		if err := os.MkdirAll(langDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "index.php"), []byte(`<?php class Test extends CModule { public $MODULE_ID = 'wrong.module.id'; }`), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(`<?php $arModuleVersion = ["VERSION" => "1.0.0", "VERSION_DATE" => "2026-01-01 00:00:00"]; ?>`), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(langDir, "index.php"), []byte(`<?php`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Module.Version = "1.0.0"
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := Run(cfg)
+
+		found := false
+		for _, issue := range issues {
+			if issue.Code == CodeModuleInstallIDMismatch && issue.Severity == Error {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("expected MODULE_INSTALL_ID_MISMATCH error")
+		}
+	})
+
+	t.Run("invalid version date format", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		langDir := filepath.Join(tmpDir, "lang", "ru", "install")
+		if err := os.MkdirAll(langDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(installDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "index.php"), []byte(`<?php class Test extends CModule { public $MODULE_ID = 'my.custom.id'; }`), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installDir, "version.php"), []byte(`<?php $arModuleVersion = ["VERSION" => "1.0.0", "VERSION_DATE" => "01.01.2026"]; ?>`), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(langDir, "index.php"), []byte(`<?php`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := config.Default()
+		cfg.Module.ID = "my.custom.id"
+		cfg.Module.Version = "1.0.0"
+		cfg.Build.SourceDir = tmpDir
+		cfg.Module.Install = "install"
+
+		issues := Run(cfg)
+
+		found := false
+		for _, issue := range issues {
+			if issue.Code == CodeModuleVersionDateInvalid {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatal("expected MODULE_VERSION_DATE_INVALID error")
 		}
 	})
 

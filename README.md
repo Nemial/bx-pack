@@ -8,8 +8,9 @@
 
 ## Возможности
 
-- **Полная валидация**: Проверка ID модуля, версии, наличия необходимых папок (например,
-  `install`) и отсутствия запрещенных файлов.
+- **Полная валидация**: Проверка ID модуля, версии, структуры `install/`, `MODULE_ID` в
+  `install/index.php`, формата `VERSION_DATE` в `install/version.php` и отсутствия
+  запрещенных файлов.
 - **Гибкая сборка**: Использование промежуточной директории (staging) для подготовки чистой
   сборки.
 - **Управление версией**: Команды `version show` и `version bump patch|minor|major` для
@@ -57,6 +58,10 @@
 Запускает серию проверок конфигурации и структуры файлов модуля.
 
 - Выводит список ошибок (`ERROR`) и предупреждений (`WARNING`).
+- Проверяет наличие `install/index.php` и `install/version.php`.
+- Проверяет, что `MODULE_ID` в `install/index.php` совпадает с `module.id`.
+- Проверяет формат `VERSION_DATE` в `install/version.php`.
+- Предупреждает, если отсутствует `lang/ru/install/index.php`.
 - Если найдены ошибки, команда завершается с ненулевым кодом выхода.
 - Поддерживает флаг `-f json` для вывода в формате JSON.
 
@@ -310,6 +315,11 @@ CI/CD.
 | `MODULE_INSTALL_NOT_FOUND`      | ERROR   | директория установки не найдена                                           |
 | `MODULE_INSTALL_STAT_ERROR`     | WARNING | ошибка при проверке директории установки                                  |
 | `MODULE_INSTALL_NOT_DIR`        | ERROR   | путь установки должен быть директорией                                    |
+| `MODULE_INSTALL_INDEX_NOT_FOUND`| ERROR   | в директории install отсутствует обязательный файл index.php              |
+| `MODULE_INSTALL_VERSION_NOT_FOUND` | ERROR | в директории install отсутствует обязательный файл version.php         |
+| `MODULE_LANG_INSTALL_NOT_FOUND` | WARNING | не найден файл локализации lang/ru/install/index.php                      |
+| `MODULE_INSTALL_ID_MISMATCH`    | ERROR   | MODULE_ID в install/index.php не совпадает с module.id                    |
+| `MODULE_VERSION_DATE_INVALID`   | ERROR   | VERSION_DATE в install/version.php отсутствует или имеет неверный формат  |
 | `BUILD_SOURCE_DIR_REQUIRED`     | ERROR   | поле build.sourceDir обязательно для заполнения                           |
 | `BUILD_SOURCE_DIR_NOT_FOUND`    | ERROR   | исходная директория не найдена                                            |
 | `BUILD_SOURCE_DIR_STAT_ERROR`   | WARNING | ошибка при проверке исходной директории                                   |
@@ -348,7 +358,7 @@ CI/CD.
 
 ## Roadmap
 
-- Расширенные валидаторы (lang файлы, лицензии).
+- Расширенные валидаторы (лицензии, состав install/db, дополнительные lang-файлы).
 - tar.gz и другие форматы.
 - Плагины для валидации.
 - Лучшая CI/CD интеграция.

@@ -10,6 +10,37 @@ import (
 	"bx-pack/internal/report"
 )
 
+func writeValidModuleFixture(t *testing.T, moduleID, version string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join("install"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join("lang", "ru", "install"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	versionContent := "<?php\n" +
+		"$VERSION = \"" + version + "\";\n" +
+		"$VERSION_DATE = \"2026-01-01 00:00:00\";\n" +
+		"?>\n"
+	if err := os.WriteFile(filepath.Join("install", "version.php"), []byte(versionContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	indexContent := "<?php\n" +
+		"$MODULE_ID = \"" + moduleID + "\";\n" +
+		"?>\n"
+	if err := os.WriteFile(filepath.Join("install", "index.php"), []byte(indexContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	langContent := "<?php\n$MESS = [];\n"
+	if err := os.WriteFile(filepath.Join("lang", "ru", "install", "index.php"), []byte(langContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInit_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
@@ -50,10 +81,9 @@ func TestBuild_Integration(t *testing.T) {
 	cfg.Build.OutputDir = "./dist"
 	cfg.Build.StagingDir = "./.bxpack/staging"
 
-	if err := os.Mkdir("install", 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile("readme.txt", []byte("hello"), 0644); err != nil {
+	writeValidModuleFixture(t, cfg.Module.ID, cfg.Module.Version)
+
+	if err := os.WriteFile("readme.txt", []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -88,9 +118,8 @@ func TestBuild_DryRun_Integration(t *testing.T) {
 	cfg.Module.Version = "1.0.0"
 	cfg.Build.OutputDir = "./dist"
 
-	if err := os.Mkdir("install", 0755); err != nil {
-		t.Fatal(err)
-	}
+	writeValidModuleFixture(t, cfg.Module.ID, cfg.Module.Version)
+
 	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
 		t.Fatal(err)
 	}
@@ -147,10 +176,19 @@ func TestValidate_InvalidVersionFile_Integration(t *testing.T) {
 	cfg.Module.Version = ""
 	cfg.Module.Install = "install"
 
-	if err := os.Mkdir("install", 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join("install"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0644); err != nil {
+	if err := os.MkdirAll(filepath.Join("lang", "ru", "install"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("install/index.php", []byte("<?php\n$MODULE_ID = \""+cfg.Module.ID+"\";\n?>\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join("lang", "ru", "install", "index.php"), []byte("<?php\n$MESS = [];\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {

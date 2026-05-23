@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"bx-pack/internal/config"
 	"bx-pack/internal/pack"
@@ -14,8 +15,10 @@ import (
 )
 
 var (
-	reModuleID      = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]+[a-z0-9]$`)
-	reModuleVersion = regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9a-zA-Z.-]+)?(\+[0-9a-zA-Z.-]+)?$`)
+	reModuleID        = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]+[a-z0-9]$`)
+	reModuleVersion   = regexp.MustCompile(`^v?\d+\.\d+\.\d+(-[0-9a-zA-Z.-]+)?(\+[0-9a-zA-Z.-]+)?$`)
+	reInstallModuleID = regexp.MustCompile(`(?m)\$MODULE_ID\s*=\s*['"]([^'"]+)['"]`)
+	reVersionDate     = regexp.MustCompile(`(?m)(?:\$VERSION_DATE|["']VERSION_DATE["'])\s*(?:=|=>)\s*["']([^"']+)["']`)
 )
 
 type Severity string
@@ -27,28 +30,33 @@ const (
 )
 
 const (
-	CodeModuleIDInvalid            string = "MODULE_ID_INVALID"
-	CodeModuleVersionRequired      string = "MODULE_VERSION_REQUIRED"
-	CodeModuleVersionInvalid       string = "MODULE_VERSION_INVALID"
-	CodeModuleNameRequired         string = "MODULE_NAME_REQUIRED"
-	CodeModuleInstallRequired      string = "MODULE_INSTALL_REQUIRED"
-	CodeModuleInstallNotFound      string = "MODULE_INSTALL_NOT_FOUND"
-	CodeModuleInstallStatError     string = "MODULE_INSTALL_STAT_ERROR"
-	CodeModuleInstallNotDir        string = "MODULE_INSTALL_NOT_DIR"
-	CodeBuildSourceDirRequired     string = "BUILD_SOURCE_DIR_REQUIRED"
-	CodeBuildSourceDirNotFound     string = "BUILD_SOURCE_DIR_NOT_FOUND"
-	CodeBuildSourceDirStatError    string = "BUILD_SOURCE_DIR_STAT_ERROR"
-	CodeBuildSourceDirNotDir       string = "BUILD_SOURCE_DIR_NOT_DIR"
-	CodeBuildOutputDirRequired     string = "BUILD_OUTPUT_DIR_REQUIRED"
-	CodeOutputDirEqualsSourceDir   string = "OUTPUT_DIR_EQUALS_SOURCE_DIR"
-	CodeBuildStagingDirRequired    string = "BUILD_STAGING_DIR_REQUIRED"
-	CodeStagingDirEqualsOutputDir  string = "STAGING_DIR_EQUALS_OUTPUT_DIR"
-	CodeStagingDirEqualsSourceDir  string = "STAGING_DIR_EQUALS_SOURCE_DIR"
-	CodeBuildArchiveNameRequired   string = "BUILD_ARCHIVE_NAME_REQUIRED"
-	CodeExcludePatternEmpty        string = "EXCLUDE_PATTERN_EMPTY"
-	CodeForbiddenPathFound         string = "FORBIDDEN_PATH_FOUND"
-	CodeForbiddenPathScanError     string = "FORBIDDEN_PATH_SCAN_ERROR"
-	CodeModuleVersionSchemeInvalid string = "MODULE_VERSION_SCHEME_INVALID"
+	CodeModuleIDInvalid              string = "MODULE_ID_INVALID"
+	CodeModuleVersionRequired        string = "MODULE_VERSION_REQUIRED"
+	CodeModuleVersionInvalid         string = "MODULE_VERSION_INVALID"
+	CodeModuleNameRequired           string = "MODULE_NAME_REQUIRED"
+	CodeModuleInstallRequired        string = "MODULE_INSTALL_REQUIRED"
+	CodeModuleInstallNotFound        string = "MODULE_INSTALL_NOT_FOUND"
+	CodeModuleInstallStatError       string = "MODULE_INSTALL_STAT_ERROR"
+	CodeModuleInstallNotDir          string = "MODULE_INSTALL_NOT_DIR"
+	CodeModuleInstallIndexNotFound   string = "MODULE_INSTALL_INDEX_NOT_FOUND"
+	CodeModuleInstallVersionNotFound string = "MODULE_INSTALL_VERSION_NOT_FOUND"
+	CodeModuleLangInstallNotFound    string = "MODULE_LANG_INSTALL_NOT_FOUND"
+	CodeModuleInstallIDMismatch      string = "MODULE_INSTALL_ID_MISMATCH"
+	CodeModuleVersionDateInvalid     string = "MODULE_VERSION_DATE_INVALID"
+	CodeBuildSourceDirRequired       string = "BUILD_SOURCE_DIR_REQUIRED"
+	CodeBuildSourceDirNotFound       string = "BUILD_SOURCE_DIR_NOT_FOUND"
+	CodeBuildSourceDirStatError      string = "BUILD_SOURCE_DIR_STAT_ERROR"
+	CodeBuildSourceDirNotDir         string = "BUILD_SOURCE_DIR_NOT_DIR"
+	CodeBuildOutputDirRequired       string = "BUILD_OUTPUT_DIR_REQUIRED"
+	CodeOutputDirEqualsSourceDir     string = "OUTPUT_DIR_EQUALS_SOURCE_DIR"
+	CodeBuildStagingDirRequired      string = "BUILD_STAGING_DIR_REQUIRED"
+	CodeStagingDirEqualsOutputDir    string = "STAGING_DIR_EQUALS_OUTPUT_DIR"
+	CodeStagingDirEqualsSourceDir    string = "STAGING_DIR_EQUALS_SOURCE_DIR"
+	CodeBuildArchiveNameRequired     string = "BUILD_ARCHIVE_NAME_REQUIRED"
+	CodeExcludePatternEmpty          string = "EXCLUDE_PATTERN_EMPTY"
+	CodeForbiddenPathFound           string = "FORBIDDEN_PATH_FOUND"
+	CodeForbiddenPathScanError       string = "FORBIDDEN_PATH_SCAN_ERROR"
+	CodeModuleVersionSchemeInvalid   string = "MODULE_VERSION_SCHEME_INVALID"
 )
 
 type Issue struct {
@@ -86,6 +94,11 @@ func Run(cfg config.Config) []Issue {
 		ValidateModuleVersionScheme,
 		ValidateModuleName,
 		ValidateModuleInstall,
+		ValidateInstallVersionFile,
+		ValidateInstallIndexFile,
+		ValidateInstallLangFile,
+		ValidateInstallIndexModuleID,
+		ValidateInstallVersionDate,
 		ValidateBuildSourceDir,
 		ValidateBuildOutputDir,
 		ValidateBuildStagingDir,
@@ -112,6 +125,11 @@ func RunWithResolvedVersion(cfg *config.Config) []Issue {
 		ValidateModuleVersionScheme,
 		ValidateModuleName,
 		ValidateModuleInstall,
+		ValidateInstallVersionFile,
+		ValidateInstallIndexFile,
+		ValidateInstallLangFile,
+		ValidateInstallIndexModuleID,
+		ValidateInstallVersionDate,
 		ValidateBuildSourceDir,
 		ValidateBuildOutputDir,
 		ValidateBuildStagingDir,
@@ -126,6 +144,164 @@ func RunWithResolvedVersion(cfg *config.Config) []Issue {
 		allIssues = append(allIssues, v(*cfg)...)
 	}
 	return allIssues
+}
+
+func installDirPath(cfg config.Config) string {
+	return filepath.Join(cfg.Build.SourceDir, cfg.Module.Install)
+}
+
+func installDirReady(cfg config.Config) bool {
+	info, err := os.Stat(installDirPath(cfg))
+	return err == nil && info.IsDir()
+}
+
+func moduleFilePath(cfg config.Config, relPath string) string {
+	return filepath.Join(cfg.Build.SourceDir, relPath)
+}
+
+func ValidateInstallVersionFile(cfg config.Config) []Issue {
+	if !installDirReady(cfg) {
+		return nil
+	}
+
+	versionPath := filepath.Join(installDirPath(cfg), "version.php")
+	info, err := os.Stat(versionPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Issue{{
+				Code:     CodeModuleInstallVersionNotFound,
+				Message:  "в директории install отсутствует обязательный файл version.php",
+				Severity: Error,
+			}}
+		}
+		return nil
+	}
+	if info.IsDir() {
+		return []Issue{{
+			Code:     CodeModuleInstallVersionNotFound,
+			Message:  "путь install/version.php должен быть файлом",
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateInstallIndexFile(cfg config.Config) []Issue {
+	if !installDirReady(cfg) {
+		return nil
+	}
+
+	indexPath := filepath.Join(installDirPath(cfg), "index.php")
+	info, err := os.Stat(indexPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Issue{{
+				Code:     CodeModuleInstallIndexNotFound,
+				Message:  "в директории install отсутствует обязательный файл index.php",
+				Severity: Error,
+			}}
+		}
+		return nil
+	}
+	if info.IsDir() {
+		return []Issue{{
+			Code:     CodeModuleInstallIndexNotFound,
+			Message:  "путь install/index.php должен быть файлом",
+			Severity: Error,
+		}}
+	}
+	return nil
+}
+
+func ValidateInstallLangFile(cfg config.Config) []Issue {
+	if !installDirReady(cfg) {
+		return nil
+	}
+
+	langPath := moduleFilePath(cfg, filepath.Join("lang", "ru", cfg.Module.Install, "index.php"))
+	info, err := os.Stat(langPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Issue{{
+				Code:     CodeModuleLangInstallNotFound,
+				Message:  fmt.Sprintf("не найден файл локализации %q", filepath.Join("lang", "ru", cfg.Module.Install, "index.php")),
+				Severity: Warning,
+			}}
+		}
+		return nil
+	}
+	if info.IsDir() {
+		return []Issue{{
+			Code:     CodeModuleLangInstallNotFound,
+			Message:  fmt.Sprintf("путь %q должен быть файлом локализации", filepath.Join("lang", "ru", cfg.Module.Install, "index.php")),
+			Severity: Warning,
+		}}
+	}
+	return nil
+}
+
+func ValidateInstallIndexModuleID(cfg config.Config) []Issue {
+	if !installDirReady(cfg) {
+		return nil
+	}
+
+	indexPath := filepath.Join(installDirPath(cfg), "index.php")
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil
+	}
+
+	match := reInstallModuleID.FindStringSubmatch(string(data))
+	if len(match) == 0 {
+		return []Issue{{
+			Code:     CodeModuleInstallIDMismatch,
+			Message:  "в install/index.php не найдено присваивание $MODULE_ID",
+			Severity: Warning,
+		}}
+	}
+
+	actualID := strings.TrimSpace(match[1])
+	if actualID != cfg.Module.ID {
+		return []Issue{{
+			Code:     CodeModuleInstallIDMismatch,
+			Message:  fmt.Sprintf("MODULE_ID в install/index.php (%q) не совпадает с module.id (%q)", actualID, cfg.Module.ID),
+			Severity: Error,
+		}}
+	}
+
+	return nil
+}
+
+func ValidateInstallVersionDate(cfg config.Config) []Issue {
+	if !installDirReady(cfg) {
+		return nil
+	}
+
+	versionPath := filepath.Join(installDirPath(cfg), "version.php")
+	data, err := os.ReadFile(versionPath)
+	if err != nil {
+		return nil
+	}
+
+	match := reVersionDate.FindStringSubmatch(string(data))
+	if len(match) == 0 {
+		return []Issue{{
+			Code:     CodeModuleVersionDateInvalid,
+			Message:  "в install/version.php не найдено поле VERSION_DATE",
+			Severity: Error,
+		}}
+	}
+
+	rawDate := strings.TrimSpace(match[1])
+	if _, err := time.Parse("2006-01-02 15:04:05", rawDate); err != nil {
+		return []Issue{{
+			Code:     CodeModuleVersionDateInvalid,
+			Message:  fmt.Sprintf("VERSION_DATE %q в install/version.php должен быть в формате YYYY-MM-DD HH:MM:SS", rawDate),
+			Severity: Error,
+		}}
+	}
+
+	return nil
 }
 
 func ValidateModuleID(cfg config.Config) []Issue {
@@ -145,11 +321,6 @@ func ValidateModuleID(cfg config.Config) []Issue {
 		}}
 	}
 	return nil
-}
-
-func ValidateModuleVersion(cfg config.Config) []Issue {
-	cfgCopy := cfg
-	return ResolveAndValidateVersion(&cfgCopy)
 }
 
 func ResolveAndValidateVersion(cfg *config.Config) []Issue {

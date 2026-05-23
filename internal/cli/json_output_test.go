@@ -22,9 +22,7 @@ func TestJSONOutput_Integration(t *testing.T) {
 	cfg.Module.Name = "Test JSON Output"
 	cfg.Module.Version = "1.0.0"
 	cfg.Module.Install = "install"
-	if err := os.Mkdir("install", 0755); err != nil {
-		t.Fatal(err)
-	}
+	writeValidModuleFixture(t, cfg.Module.ID, cfg.Module.Version)
 	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
 		t.Fatal(err)
 	}
