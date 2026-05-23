@@ -19,24 +19,24 @@ var templatesFS embed.FS
 const DefaultConfigPath = ".bxpack.yml"
 
 type Config struct {
-	Module  Module   `yaml:"module" omitzero`
-	Build   Build    `yaml:"build" omitzero`
-	Exclude []string `yaml:"exclude" omitzero`
+	Module  Module   `yaml:"module,omitempty"`
+	Build   Build    `yaml:"build,omitempty"`
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 type Module struct {
-	ID            string `yaml:"id" omitzero`
-	Version       string `yaml:"version" omitzero`
-	VersionScheme string `yaml:"versionScheme" omitzero`
-	Name          string `yaml:"name" omitzero`
-	Install       string `yaml:"install" omitzero`
+	ID            string `yaml:"id,omitempty"`
+	Version       string `yaml:"version,omitempty"`
+	VersionScheme string `yaml:"versionScheme,omitempty"`
+	Name          string `yaml:"name,omitempty"`
+	Install       string `yaml:"install,omitempty"`
 }
 
 type Build struct {
-	SourceDir   string `yaml:"sourceDir" omitzero`
-	OutputDir   string `yaml:"outputDir" omitzero`
-	StagingDir  string `yaml:"stagingDir" omitzero`
-	ArchiveName string `yaml:"archiveName" omitzero`
+	SourceDir   string `yaml:"sourceDir,omitempty"`
+	OutputDir   string `yaml:"outputDir,omitempty"`
+	StagingDir  string `yaml:"stagingDir,omitempty"`
+	ArchiveName string `yaml:"archiveName,omitempty"`
 }
 
 func Default() Config {
