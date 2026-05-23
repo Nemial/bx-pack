@@ -75,8 +75,8 @@ func ParseVersion(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("чтение файла %q: %w", path, err)
 	}
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(data), "\n")
+	for line := range lines {
 		_, _, _, value, ok := parseAssign(line, "VERSION")
 		if ok {
 			return value, nil

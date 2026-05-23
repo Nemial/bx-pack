@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"bx-pack/internal/config"
@@ -376,20 +377,11 @@ func ValidateForbiddenPaths(cfg config.Config) []Issue {
 		name := info.Name()
 		ext := filepath.Ext(name)
 
-		isForbidden := false
-		for _, fn := range forbiddenNames {
-			if name == fn {
-				isForbidden = true
-				break
-			}
-		}
+		isForbidden := slices.Contains(forbiddenNames, name)
 
 		if !isForbidden {
-			for _, fe := range forbiddenExts {
-				if ext == fe {
-					isForbidden = true
-					break
-				}
+			if slices.Contains(forbiddenExts, ext) {
+				isForbidden = true
 			}
 		}
 
