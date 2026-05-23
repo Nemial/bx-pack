@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestRootHelpIsLocalized(t *testing.T) {
-	rootCmd := newRootCmd()
+	rootCmd := NewRootCmd()
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
@@ -35,7 +35,7 @@ func TestRootHelpIsLocalized(t *testing.T) {
 }
 
 func TestBuildUsageIsLocalized(t *testing.T) {
-	buildCmd, _, err := newRootCmd().Find([]string{"build"})
+	buildCmd, _, err := NewRootCmd().Find([]string{"build"})
 	if err != nil {
 		t.Fatalf("Find build command failed: %v", err)
 	}
