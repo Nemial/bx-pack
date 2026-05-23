@@ -171,8 +171,7 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 
 	// Обновляем .bxpack.yml только если версия там была прописана
 	if versionInConfig != "" {
-		cfg.Module.Version = newVer
-		if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+		if err := config.UpdateModuleVersion(config.DefaultConfigPath, newVer); err != nil {
 			err = fmt.Errorf("обновление %s: %w", config.DefaultConfigPath, err)
 			reporter.PrintConfigError(err)
 			return NewCLIError(ExitConfigErr, err)

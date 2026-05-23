@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"text/template"
 
 	"gopkg.in/yaml.v3"
@@ -121,6 +123,101 @@ func Save(cfg Config, path string) error {
 	}
 
 	return nil
+}
+
+func UpdateModuleVersion(path string, newVersion string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read config file %q: %w", path, err)
+	}
+
+	updated, err := replaceModuleVersion(string(data), newVersion)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
+		return fmt.Errorf("write config file %q: %w", path, err)
+	}
+
+	return nil
+}
+
+func replaceModuleVersion(content string, newVersion string) (string, error) {
+	lines := strings.Split(content, "\n")
+
+	moduleIndent := -1
+	versionUpdated := false
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		indent := leadingIndentWidth(line)
+
+		if trimmed == "module:" {
+			moduleIndent = indent
+			continue
+		}
+
+		if moduleIndent == -1 {
+			continue
+		}
+
+		// Вышли из секции module в новый top-level блок.
+		if indent <= moduleIndent && !strings.HasPrefix(trimmed, "- ") {
+			break
+		}
+
+		if indent <= moduleIndent {
+			continue
+		}
+
+		updatedLine, changed := replaceVersionLine(line, newVersion)
+		if changed {
+			lines[i] = updatedLine
+			versionUpdated = true
+			break
+		}
+	}
+
+	if !versionUpdated {
+		return "", fmt.Errorf("module.version not found in module section")
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
+func replaceVersionLine(line string, newVersion string) (string, bool) {
+	re := regexp.MustCompile(`^(\s*version\s*:\s*)(["']?)([^"'\s#]*)(["']?)(\s*(#.*)?)$`)
+	match := re.FindStringSubmatch(line)
+	if len(match) == 0 {
+		return "", false
+	}
+
+	prefix := match[1]
+	openQuote := match[2]
+	closeQuote := match[4]
+	suffix := match[5]
+
+	if openQuote == "" && closeQuote == "" {
+		openQuote = `"`
+		closeQuote = `"`
+	}
+	if openQuote != "" && closeQuote == "" {
+		closeQuote = openQuote
+	}
+	if closeQuote != "" && openQuote == "" {
+		openQuote = closeQuote
+	}
+
+	return prefix + openQuote + newVersion + closeQuote + suffix, true
+}
+
+func leadingIndentWidth(line string) int {
+	return len(line) - len(strings.TrimLeft(line, " \t"))
 }
 
 // NormalizePaths нормализует пути в конфиге, делая их абсолютными.

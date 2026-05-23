@@ -135,3 +135,95 @@ func TestGenerateTemplate(t *testing.T) {
 		t.Error("GenerateTemplate() output did not contain valid module.id")
 	}
 }
+
+func TestUpdateModuleVersion(t *testing.T) {
+	t.Run("updates only version and preserves comments", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfgPath := filepath.Join(tmpDir, ".bxpack.yml")
+
+		content := `# header comment
+module:
+  id: "vendor.module"
+  version: "1.2.3" # keep me
+  versionScheme: "semver"
+  name: "Модуль"
+
+build:
+  sourceDir: "."
+  outputDir: "./dist"
+
+exclude:
+  - ".git"
+`
+		if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := UpdateModuleVersion(cfgPath, "1.2.4"); err != nil {
+			t.Fatalf("UpdateModuleVersion failed: %v", err)
+		}
+
+		updated, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := string(updated)
+
+		if !strings.Contains(got, `version: "1.2.4" # keep me`) {
+			t.Fatalf("expected updated version with preserved comment, got:\n%s", got)
+		}
+		if !strings.Contains(got, `# header comment`) {
+			t.Fatalf("expected header comment to be preserved, got:\n%s", got)
+		}
+		if !strings.Contains(got, "build:\n  sourceDir: \".\"") {
+			t.Fatalf("expected build section to stay untouched, got:\n%s", got)
+		}
+		if strings.Contains(got, `version: "1.2.3" # keep me`) {
+			t.Fatalf("old version still present, got:\n%s", got)
+		}
+	})
+
+	t.Run("preserves single quotes", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfgPath := filepath.Join(tmpDir, ".bxpack.yml")
+
+		content := `module:
+ id: "vendor.module"
+ version: '1.2.3'
+ versionScheme: "semver"
+`
+		if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := UpdateModuleVersion(cfgPath, "1.2.4"); err != nil {
+			t.Fatalf("UpdateModuleVersion failed: %v", err)
+		}
+
+		updated, err := os.ReadFile(cfgPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(updated), `version: '1.2.4'`) {
+			t.Fatalf("expected single quotes to be preserved, got:\n%s", string(updated))
+		}
+	})
+
+	t.Run("returns error when version key is missing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfgPath := filepath.Join(tmpDir, ".bxpack.yml")
+
+		content := `module:
+ id: "vendor.module"
+ versionScheme: "semver"
+`
+		if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		err := UpdateModuleVersion(cfgPath, "1.2.4")
+		if err == nil {
+			t.Fatal("expected error when module.version is missing")
+		}
+	})
+}

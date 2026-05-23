@@ -265,3 +265,57 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 		t.Error("VersionBump should fail for invalid version format")
 	}
 }
+
+func TestVersionBump_PreservesConfigComments(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origWd)
+
+	configContent := `module:
+  id: "example.module"
+  version: "1.0.0" # important comment
+  versionScheme: "semver"
+  name: "Test Module"
+  install: "install"
+
+build:
+  sourceDir: "."
+  outputDir: "./dist"
+  stagingDir: "./.bxpack/staging"
+  archiveName: "{module.id}-{module.version}.zip"
+`
+
+	if err := os.WriteFile(config.DefaultConfigPath, []byte(configContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Mkdir("install", 0755); err != nil {
+		t.Fatal(err)
+	}
+	versionContent := `<?php
+$VERSION = "1.0.0";
+$VERSION_DATE = "2023-01-01 00:00:00";
+?>`
+	if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	reporter := report.NewReporter(report.TextFormat)
+	if err := VersionBump(reporter, "patch"); err != nil {
+		t.Fatalf("VersionBump failed: %v", err)
+	}
+
+	data, err := os.ReadFile(config.DefaultConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+
+	if !strings.Contains(got, `version: "1.0.1" # important comment`) {
+		t.Fatalf("expected updated version with preserved comment, got:\n%s", got)
+	}
+	if !strings.Contains(got, "build:\n  sourceDir: \".\"") {
+		t.Fatalf("expected build section to remain intact, got:\n%s", got)
+	}
+}
