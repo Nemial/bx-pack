@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+    build:cli:
+        desc: Собрать бинарь bx-pack в директорию dist
+        cmds:
+            - mkdir -p dist
+            - go build -o ./dist/bx-pack ./cmd/bx-pack
+
+    test:
+        desc: Запустить все тесты
+        cmds:
+            - go test ./...
+
+    fix:
+        desc: Go fix
+        cmds:
+            - go fix ./...
+
+    check:
+        desc: Быстрая локальная проверка
+        cmds:
+            -   task: vet
+            -   task: test
+
+    fmt:
+        desc: Отформатировать Go-код
+        cmds:
+            - go fmt ./...
+
+    vet:
+        desc: Запустить go vet
+        cmds:
+            - go vet ./...
+
+    test:race:
+        desc: Запустить тесты с race detector
+        cmds:
+            - go test -race ./...
+
+    test:cover:
+        desc: Запустить тесты с покрытием
+        cmds:
+            - go test -coverprofile=coverage.out ./...
+            - go tool cover -func=coverage.out
+
+    ci:
+        desc: Полная локальная проверка перед коммитом
+        deps:
+            - fmt
+            - test
+            - vet
