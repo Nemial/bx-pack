@@ -1,0 +1,18 @@
+# Пример конфигурации со сборкой в TAR.GZ-архив.
+
+module:
+    id: "vendor.targz.module"
+    version: "1.0.0"
+    name: "Модуль в TAR.GZ"
+    install: "install"
+
+build:
+    sourceDir: "."
+    outputDir: "./dist"
+    stagingDir: "./.bxpack/staging"
+    archiveName: "{module.id}-{module.version}.tar.gz"
+
+exclude:
+    - ".git"
+    - ".bxpack"
+    - "dist"

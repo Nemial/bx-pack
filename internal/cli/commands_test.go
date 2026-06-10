@@ -106,6 +106,45 @@ func TestBuild_Integration(t *testing.T) {
 	}
 }
 
+func TestBuild_TarGz_Integration(t *testing.T) {
+	tmpDir := t.TempDir()
+	origWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origWd)
+
+	cfg := config.Default()
+	cfg.Module.ID = "test.integration.targz"
+	cfg.Module.Name = "Test Integration TAR.GZ"
+	cfg.Module.Version = "1.0.0"
+	cfg.Module.Install = "install"
+	cfg.Build.SourceDir = "."
+	cfg.Build.OutputDir = "./dist"
+	cfg.Build.StagingDir = "./.bxpack/staging"
+	cfg.Build.ArchiveName = "{module.id}-{module.version}.tar.gz"
+
+	writeValidModuleFixture(t, cfg.Module.ID, cfg.Module.Version)
+
+	if err := os.WriteFile("readme.txt", []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	reporter := report.NewReporter(report.TextFormat)
+	err := Build(reporter, false)
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	archiveName := "test.integration.targz-1.0.0.tar.gz"
+	archivePath := filepath.Join("dist", archiveName)
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		t.Errorf("archive %s not created", archivePath)
+	}
+}
+
 func TestBuild_DryRun_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()

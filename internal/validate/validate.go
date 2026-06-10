@@ -53,6 +53,7 @@ const (
 	CodeStagingDirEqualsOutputDir    string = "STAGING_DIR_EQUALS_OUTPUT_DIR"
 	CodeStagingDirEqualsSourceDir    string = "STAGING_DIR_EQUALS_SOURCE_DIR"
 	CodeBuildArchiveNameRequired     string = "BUILD_ARCHIVE_NAME_REQUIRED"
+	CodeBuildArchiveNameInvalid      string = "BUILD_ARCHIVE_NAME_INVALID"
 	CodeExcludePatternEmpty          string = "EXCLUDE_PATTERN_EMPTY"
 	CodeForbiddenPathFound           string = "FORBIDDEN_PATH_FOUND"
 	CodeForbiddenPathScanError       string = "FORBIDDEN_PATH_SCAN_ERROR"
@@ -545,6 +546,15 @@ func ValidateBuildArchiveName(cfg config.Config) []Issue {
 			Severity: Error,
 		}}
 	}
+
+	if !strings.HasSuffix(cfg.Build.ArchiveName, ".zip") && !strings.HasSuffix(cfg.Build.ArchiveName, ".tar.gz") {
+		return []Issue{{
+			Code:     CodeBuildArchiveNameInvalid,
+			Message:  "build.archiveName должен оканчиваться на .zip или .tar.gz",
+			Severity: Error,
+		}}
+	}
+
 	return nil
 }
 

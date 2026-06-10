@@ -1,7 +1,9 @@
 package pack
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +13,13 @@ import (
 	"bx-pack/internal/config"
 )
 
+type archiveFormat string
+
+const (
+	archiveFormatZIP   archiveFormat = "zip"
+	archiveFormatTarGz archiveFormat = "tar.gz"
+)
+
 // IsExcluded проверяет, должен ли путь быть исключен на основе списка паттернов.
 func IsExcluded(relPath string, exclude []string) (bool, error) {
 	for _, pattern := range exclude {
@@ -18,13 +27,10 @@ func IsExcluded(relPath string, exclude []string) (bool, error) {
 			continue
 		}
 
-		// Точное совпадение или префикс (для директорий)
 		if relPath == pattern || strings.HasPrefix(relPath, pattern+string(filepath.Separator)) {
 			return true, nil
 		}
 
-		// Поддержка glob-паттернов
-		// Сначала проверяем весь путь
 		match, err := filepath.Match(pattern, relPath)
 		if err != nil {
 			return false, fmt.Errorf("invalid pattern %q: %w", pattern, err)
@@ -33,8 +39,6 @@ func IsExcluded(relPath string, exclude []string) (bool, error) {
 			return true, nil
 		}
 
-		// Проверка glob-паттерна для всех родительских директорий
-		// Например, "temp/*" должен исключать "temp/cache/file.txt"
 		parts := strings.Split(relPath, string(filepath.Separator))
 		for i := 1; i < len(parts); i++ {
 			parent := strings.Join(parts[:i], string(filepath.Separator))
@@ -44,8 +48,6 @@ func IsExcluded(relPath string, exclude []string) (bool, error) {
 			}
 		}
 
-		// Проверка glob-паттерна для базового имени (например, *.log в любой папке)
-		// filepath.Match("*.log", "dir/file.log") вернет false, поэтому проверяем базовое имя
 		match, err = filepath.Match(pattern, filepath.Base(relPath))
 		if err == nil && match {
 			return true, nil
@@ -55,19 +57,17 @@ func IsExcluded(relPath string, exclude []string) (bool, error) {
 }
 
 func PrepareStaging(cfg config.Config) error {
-	// Очистка и создание staging директории
 	if err := os.RemoveAll(cfg.Build.StagingDir); err != nil {
 		return fmt.Errorf("cleanup staging dir: %w", err)
 	}
 
-	if err := os.MkdirAll(cfg.Build.StagingDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.Build.StagingDir, 0o755); err != nil {
 		return fmt.Errorf("create staging dir: %w", err)
 	}
 
 	absStaging := cfg.Build.StagingDir
 	absOutput := cfg.Build.OutputDir
 
-	// Копирование файлов
 	return filepath.Walk(cfg.Build.SourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -77,13 +77,11 @@ func PrepareStaging(cfg config.Config) error {
 			return nil
 		}
 
-		// Получаем относительный путь от sourceDir
 		relPath, err := filepath.Rel(cfg.Build.SourceDir, path)
 		if err != nil {
 			return err
 		}
 
-		// Логика исключений
 		excluded, err := IsExcluded(relPath, cfg.Exclude)
 		if err != nil {
 			return err
@@ -95,7 +93,6 @@ func PrepareStaging(cfg config.Config) error {
 			return nil
 		}
 
-		// Исключаем саму staging и output директории
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			return err
@@ -117,29 +114,23 @@ func PrepareStaging(cfg config.Config) error {
 	})
 }
 
-func GetArchiveBaseName(cfg config.Config) string {
-	archiveName := cfg.Build.ArchiveName
-	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
-	archiveName = strings.ReplaceAll(archiveName, "{module.version}", cfg.Module.Version)
-
-	return strings.TrimSuffix(archiveName, ".zip")
-}
-
 func GetArchivePath(cfg config.Config) string {
-	archiveName := cfg.Build.ArchiveName
-	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
-	archiveName = strings.ReplaceAll(archiveName, "{module.version}", cfg.Module.Version)
-
-	return filepath.Join(cfg.Build.OutputDir, archiveName)
+	return filepath.Join(cfg.Build.OutputDir, resolveArchiveName(cfg))
 }
 
 func CreateArchive(cfg config.Config) (string, error) {
-	if err := os.MkdirAll(cfg.Build.OutputDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.Build.OutputDir, 0o755); err != nil {
 		return "", fmt.Errorf("create output dir: %w", err)
 	}
 
-	archivePath := GetArchivePath(cfg)
-	baseDirName := GetArchiveBaseName(cfg)
+	archiveName := resolveArchiveName(cfg)
+	format, err := detectArchiveFormat(archiveName)
+	if err != nil {
+		return "", err
+	}
+
+	archivePath := filepath.Join(cfg.Build.OutputDir, archiveName)
+	baseDirName := archiveBaseName(archiveName, format)
 
 	outFile, err := os.Create(archivePath)
 	if err != nil {
@@ -147,10 +138,70 @@ func CreateArchive(cfg config.Config) (string, error) {
 	}
 	defer outFile.Close()
 
-	w := zip.NewWriter(outFile)
-	defer w.Close()
+	switch format {
+	case archiveFormatZIP:
+		zipWriter := zip.NewWriter(outFile)
+		if err := writeZIPArchive(zipWriter, cfg.Build.StagingDir, baseDirName); err != nil {
+			_ = zipWriter.Close()
+			return "", fmt.Errorf("zip staging: %w", err)
+		}
+		if err := zipWriter.Close(); err != nil {
+			return "", fmt.Errorf("finalize zip archive: %w", err)
+		}
+	case archiveFormatTarGz:
+		gzipWriter := gzip.NewWriter(outFile)
+		tarWriter := tar.NewWriter(gzipWriter)
 
-	err = filepath.Walk(cfg.Build.StagingDir, func(path string, info os.FileInfo, err error) error {
+		if err := writeTarArchive(tarWriter, cfg.Build.StagingDir, baseDirName); err != nil {
+			_ = tarWriter.Close()
+			_ = gzipWriter.Close()
+			return "", fmt.Errorf("tar.gz staging: %w", err)
+		}
+		if err := tarWriter.Close(); err != nil {
+			_ = gzipWriter.Close()
+			return "", fmt.Errorf("finalize tar stream: %w", err)
+		}
+		if err := gzipWriter.Close(); err != nil {
+			return "", fmt.Errorf("finalize gzip stream: %w", err)
+		}
+	default:
+		return "", fmt.Errorf("unsupported archive format %q", format)
+	}
+
+	return archivePath, nil
+}
+
+func resolveArchiveName(cfg config.Config) string {
+	archiveName := cfg.Build.ArchiveName
+	archiveName = strings.ReplaceAll(archiveName, "{module.id}", cfg.Module.ID)
+	archiveName = strings.ReplaceAll(archiveName, "{module.version}", cfg.Module.Version)
+	return archiveName
+}
+
+func detectArchiveFormat(archiveName string) (archiveFormat, error) {
+	switch {
+	case strings.HasSuffix(archiveName, ".tar.gz"):
+		return archiveFormatTarGz, nil
+	case strings.HasSuffix(archiveName, ".zip"):
+		return archiveFormatZIP, nil
+	default:
+		return "", fmt.Errorf("unsupported archive format %q: expected .zip or .tar.gz", archiveName)
+	}
+}
+
+func archiveBaseName(archiveName string, format archiveFormat) string {
+	switch format {
+	case archiveFormatZIP:
+		return strings.TrimSuffix(archiveName, ".zip")
+	case archiveFormatTarGz:
+		return strings.TrimSuffix(archiveName, ".tar.gz")
+	default:
+		return archiveName
+	}
+}
+
+func walkStagingFiles(stagingDir string, visit func(path, relPath string, info os.FileInfo) error) error {
+	return filepath.Walk(stagingDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -158,13 +209,20 @@ func CreateArchive(cfg config.Config) (string, error) {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(cfg.Build.StagingDir, path)
+		relPath, err := filepath.Rel(stagingDir, path)
 		if err != nil {
 			return err
 		}
 
-		zipPath := filepath.ToSlash(filepath.Join(baseDirName, relPath))
-		f, err := w.Create(zipPath)
+		return visit(path, relPath, info)
+	})
+}
+
+func writeZIPArchive(w *zip.Writer, stagingDir, baseDirName string) error {
+	return walkStagingFiles(stagingDir, func(path, relPath string, info os.FileInfo) error {
+		archivePath := filepath.ToSlash(filepath.Join(baseDirName, relPath))
+
+		f, err := w.Create(archivePath)
 		if err != nil {
 			return err
 		}
@@ -178,12 +236,31 @@ func CreateArchive(cfg config.Config) (string, error) {
 		_, err = io.Copy(f, in)
 		return err
 	})
+}
 
-	if err != nil {
-		return "", fmt.Errorf("zip staging: %w", err)
-	}
+func writeTarArchive(w *tar.Writer, stagingDir, baseDirName string) error {
+	return walkStagingFiles(stagingDir, func(path, relPath string, info os.FileInfo) error {
+		archivePath := filepath.ToSlash(filepath.Join(baseDirName, relPath))
 
-	return archivePath, nil
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = archivePath
+
+		if err := w.WriteHeader(header); err != nil {
+			return err
+		}
+
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		_, err = io.Copy(w, in)
+		return err
+	})
 }
 
 func copyFile(src, dst string) error {

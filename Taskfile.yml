@@ -12,7 +12,7 @@ tasks:
     test:
         desc: Запустить все тесты
         cmds:
-            - go test ./...
+            - go test -race ./...
 
     fix:
         desc: Go fix
@@ -35,16 +35,15 @@ tasks:
         cmds:
             - go vet ./...
 
-    test:race:
-        desc: Запустить тесты с race detector
-        cmds:
-            - go test -race ./...
+    up:check:
+        desc: Проверка на новые версии
+        cmd: go list -m -u all
 
-    test:cover:
-        desc: Запустить тесты с покрытием
+    up:
+        desc: Обновить до новых версий
         cmds:
-            - go test -coverprofile=coverage.out ./...
-            - go tool cover -func=coverage.out
+            - go get -u ./...
+            - go mod tidy
 
     ci:
         desc: Полная локальная проверка перед коммитом

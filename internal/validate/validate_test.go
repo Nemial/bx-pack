@@ -244,6 +244,23 @@ func TestRun(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid archive format", func(t *testing.T) {
+		cfg := config.Default()
+		cfg.Build.ArchiveName = "module.rar"
+
+		issues := Run(cfg)
+		found := false
+		for _, issue := range issues {
+			if issue.Code == "BUILD_ARCHIVE_NAME_INVALID" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected BUILD_ARCHIVE_NAME_INVALID error")
+		}
+	})
+
 	t.Run("version resolved from install version file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		writeValidInstallFixture(t, tmpDir, "my.custom.id", "2.3.4")

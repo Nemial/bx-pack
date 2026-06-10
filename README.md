@@ -1,6 +1,6 @@
 # bx-pack
 
-Инструмент для валидации и сборки модулей Битрикс в ZIP-архивы.
+Инструмент для валидации и сборки модулей Битрикс в ZIP- и TAR.GZ-архивы.
 
 `bx-pack` помогает убедиться, что ваш модуль соответствует стандартам маркетплейса Битрикс,
 автоматически проверяет структуру файлов и создает готовый к загрузке архив, исключая лишние
@@ -12,10 +12,11 @@
   `install/index.php`, формата `VERSION_DATE` в `install/version.php` и отсутствия
   запрещенных файлов.
 - **Гибкая сборка**: Использование промежуточной директории (staging) для подготовки чистой
-  сборки.
+  сборки и создание архивов в формате ZIP или TAR.GZ.
 - **Управление версией**: Команды `version show` и `version bump patch|minor|major` для
   парсинга и обновления install/version.php.
-- **Быстрый старт (Scaffold)**: Команда `scaffold` для генерации базовой структуры нового модуля.
+- **Быстрый старт (Scaffold)**: Команда `scaffold` для генерации базовой структуры нового
+  модуля.
 - **Исключения**: Простая настройка файлов и папок, которые не должны попасть в архив.
 - **Поддержка JSON**: Возможность интеграции с CI/CD благодаря машинночитаемому выводу.
 
@@ -46,12 +47,14 @@
 ### `scaffold`
 
 Создает минимальную стартовую структуру Bitrix-модуля:
+
 - `.bxpack.yml` с предложенным ID (на основе имени папки).
 - `install/` — директория с `index.php` (класс модуля) и `version.php`.
 - `lang/ru/install/index.php` — файл локализации.
 - `lib/`, `admin/`, `assets/`, `include.php` и другие базовые файлы.
 
-**Флаг `--dry-run`**: Показывает список файлов и директорий, которые будут созданы, без реальных изменений на диске.
+**Флаг `--dry-run`**: Показывает список файлов и директорий, которые будут созданы, без
+реальных изменений на диске.
 
 ### `validate`
 
@@ -71,16 +74,32 @@
 
 1. Запускает полную валидацию. Если есть ошибки — сборка прерывается.
 2. Копирует файлы модуля во временную директорию (`stagingDir`), применяя правила исключений.
-3. Создает ZIP-архив в директории `outputDir`.
-4. Удаляет временные файлы.
+3. Создает архив в директории `outputDir`.
+4. Формат архива определяется расширением `build.archiveName`: поддерживаются `.zip` и `.tar.gz`.
+
 
 **Флаг `--dry-run`**: Показывает план сборки без создания файлов и директорий.
 
+**Форматы архивов**
+
+- `.zip` — формат по умолчанию.
+- `.tar.gz` — gzip-сжатый tar-архив.
+
+Пример:
+
+```yaml
+build:
+    archiveName: "{module.id}-{module.version}.tar.gz"
+```
+
 ### `version`
 
-Инструмент поддерживает работу с версией модуля, используя файл `install/version.php` как основной источник истины. Поле `module.version` в `.bxpack.yml` является необязательным и служит для переопределения (override) версии из PHP.
+Инструмент поддерживает работу с версией модуля, используя файл `install/version.php` как
+основной источник истины. Поле `module.version` в `.bxpack.yml` является необязательным и
+служит для переопределения (override) версии из PHP.
 
 **Логика приоритетов:**
+
 1. Если `module.version` указана в `.bxpack.yml` — используется это значение.
 2. Если `module.version` пуста — версия автоматически считывается из `install/version.php`.
 
@@ -112,18 +131,22 @@ bx-pack version show
 
 #### `bump [patch|minor|major|auto]`
 
-Инкрементирует версию согласно выбранной схеме (`versionScheme`), обновляет `VERSION_DATE` и перезаписывает файл `install/version.php`.
+Инкрементирует версию согласно выбранной схеме (`versionScheme`), обновляет `VERSION_DATE` и
+перезаписывает файл `install/version.php`.
 Если аргумент не указан, используется `auto`.
 
 **Примеры:**
+
 ```bash
 bx-pack version bump        # Автоматический выбор (обычно patch)
 bx-pack version bump minor  # Явное указание minor-версии
 ```
 
 **Важно:**
+
 - Версия в `install/version.php` обновляется всегда.
-- Версия в `.bxpack.yml` обновляется **только если она там была указана**. Если поле было пустым для автоопределения — оно останется пустым.
+- Версия в `.bxpack.yml` обновляется **только если она там была указана**. Если поле было
+  пустым для автоопределения — оно останется пустым.
 
 | Схема         | patch                | minor             | major             |
 |---------------|----------------------|-------------------|-------------------|
@@ -160,24 +183,24 @@ bx-pack version bump major   # 1.0.0 → 2.0.0
 
 ```yaml
 module:
-  id: "my.company.module"      # Уникальный ID модуля
-  version: ""                  # Версия модуля (оставьте пустым для автоопределения из install/version.php)
-  versionScheme: "semver"      # Схема версионирования (semver, calver, year-semver, custom)
-  name: "Мой крутой модуль"    # Название модуля
-  install: "install"           # Папка с установочными скриптами
+    id: "my.company.module"      # Уникальный ID модуля
+    version: ""                  # Версия модуля (оставьте пустым для автоопределения из install/version.php)
+    versionScheme: "semver"      # Схема версионирования (semver, calver, year-semver, custom)
+    name: "Мой крутой модуль"    # Название модуля
+    install: "install"           # Папка с установочными скриптами
 
 build:
-  sourceDir: "."               # Корневая папка (обычно текущая)
-  outputDir: "./dist"          # Куда сохранить готовый архив
-  stagingDir: "./.bxpack/temp" # Временная папка для сборки
-  archiveName: "{module.id}-{module.version}.zip" # Имя архива (поддерживает шаблоны)
+    sourceDir: "."               # Корневая папка (обычно текущая)
+    outputDir: "./dist"          # Куда сохранить готовый архив
+    stagingDir: "./.bxpack/temp" # Временная папка для сборки
+    archiveName: "{module.id}-{module.version}.zip" # Формат определяется расширением: .zip или .tar.gz
 
 exclude:
-  - ".git"                     # Исключить папку .git
-  - "node_modules"             # Исключить зависимости npm
-  - ".bxpack"                  # Исключить саму папку сборщика
-  - "dist"                     # Исключить папку с архивами
-  - "*.log"                    # Исключить лог-файлы
+    - ".git"                     # Исключить папку .git
+    - "node_modules"             # Исключить зависимости npm
+    - ".bxpack"                  # Исключить саму папку сборщика
+    - "dist"                     # Исключить папку с архивами
+    - "*.log"                    # Исключить лог-файлы
 ```
 
 ## Примеры использования
@@ -212,6 +235,7 @@ bx-pack validate -f json > reports/validation.json
   исключаемых файлов и папок.
 - [`ci.yml`](examples/ci.yml) — Настройки, оптимизированные для использования в CI (GitHub
   Actions, GitLab CI).
+- [`tar_gz.yml`](examples/tar.yml) — Пример сборки в TAR.GZ-архив.
 
 Вы можете скопировать любой из этих файлов в корень вашего проекта как `.bxpack.yml` и
 отредактировать под свои нужды.
@@ -305,35 +329,36 @@ Dry run завершен. Файлы не были изменены.
 Эти коды используются в поле `findings[].Code` JSON-отчета и выводе `validate` для удобства
 CI/CD.
 
-| Код                             | Уровень | Пример сообщения                                                          |
-|---------------------------------|---------|---------------------------------------------------------------------------|
-| `MODULE_ID_INVALID`             | ERROR   | module.id должен быть установлен в значение, отличное от стандартного     |
-| `MODULE_VERSION_REQUIRED`       | ERROR   | поле module.version в конфиге пусто, и файл install/version.php не найден |
-| `MODULE_VERSION_INVALID`        | ERROR   | module.version не соответствует формату семантического версионирования    |
-| `MODULE_NAME_REQUIRED`          | WARNING | поле module.name обязательно для заполнения                               |
-| `MODULE_INSTALL_REQUIRED`       | ERROR   | поле module.install обязательно для заполнения                            |
-| `MODULE_INSTALL_NOT_FOUND`      | ERROR   | директория установки не найдена                                           |
-| `MODULE_INSTALL_STAT_ERROR`     | WARNING | ошибка при проверке директории установки                                  |
-| `MODULE_INSTALL_NOT_DIR`        | ERROR   | путь установки должен быть директорией                                    |
-| `MODULE_INSTALL_INDEX_NOT_FOUND`| ERROR   | в директории install отсутствует обязательный файл index.php              |
-| `MODULE_INSTALL_VERSION_NOT_FOUND` | ERROR | в директории install отсутствует обязательный файл version.php         |
-| `MODULE_LANG_INSTALL_NOT_FOUND` | WARNING | не найден файл локализации lang/ru/install/index.php                      |
-| `MODULE_INSTALL_ID_MISMATCH`    | ERROR   | MODULE_ID в install/index.php не совпадает с module.id                    |
-| `MODULE_VERSION_DATE_INVALID`   | ERROR   | VERSION_DATE в install/version.php отсутствует или имеет неверный формат  |
-| `BUILD_SOURCE_DIR_REQUIRED`     | ERROR   | поле build.sourceDir обязательно для заполнения                           |
-| `BUILD_SOURCE_DIR_NOT_FOUND`    | ERROR   | исходная директория не найдена                                            |
-| `BUILD_SOURCE_DIR_STAT_ERROR`   | WARNING | ошибка при проверке исходной директории                                   |
-| `BUILD_SOURCE_DIR_NOT_DIR`      | ERROR   | исходный путь должен быть директорией                                     |
-| `BUILD_OUTPUT_DIR_REQUIRED`     | ERROR   | поле build.outputDir обязательно для заполнения                           |
-| `OUTPUT_DIR_EQUALS_SOURCE_DIR`  | ERROR   | outputDir не должен совпадать с sourceDir                                 |
-| `BUILD_STAGING_DIR_REQUIRED`    | ERROR   | поле build.stagingDir обязательно для заполнения                          |
-| `STAGING_DIR_EQUALS_OUTPUT_DIR` | ERROR   | stagingDir не должен совпадать с outputDir                                |
-| `STAGING_DIR_EQUALS_SOURCE_DIR` | ERROR   | stagingDir не должен совпадать с sourceDir                                |
-| `BUILD_ARCHIVE_NAME_REQUIRED`   | ERROR   | поле build.archiveName обязательно для заполнения                         |
-| `EXCLUDE_PATTERN_EMPTY`         | WARNING | в списке exclude не должно быть пустых строк                              |
-| `FORBIDDEN_PATH_FOUND`          | WARNING | обнаружен запрещенный путь в исходниках                                   |
-| `FORBIDDEN_PATH_SCAN_ERROR`     | WARNING | ошибка при сканировании запрещенных путей                                 |
-| `MODULE_VERSION_SCHEME_INVALID` | ERROR   | неизвестная схема версионирования                                         |
+| Код                                | Уровень | Пример сообщения                                                          |
+|------------------------------------|---------|---------------------------------------------------------------------------|
+| `MODULE_ID_INVALID`                | ERROR   | module.id должен быть установлен в значение, отличное от стандартного     |
+| `MODULE_VERSION_REQUIRED`          | ERROR   | поле module.version в конфиге пусто, и файл install/version.php не найден |
+| `MODULE_VERSION_INVALID`           | ERROR   | module.version не соответствует формату семантического версионирования    |
+| `MODULE_NAME_REQUIRED`             | WARNING | поле module.name обязательно для заполнения                               |
+| `BUILD_ARCHIVE_NAME_INVALID`       | ERROR   | build.archiveName должен оканчиваться на .zip или .tar                    |
+| `MODULE_INSTALL_REQUIRED`          | ERROR   | поле module.install обязательно для заполнения                            |
+| `MODULE_INSTALL_NOT_FOUND`         | ERROR   | директория установки не найдена                                           |
+| `MODULE_INSTALL_STAT_ERROR`        | WARNING | ошибка при проверке директории установки                                  |
+| `MODULE_INSTALL_NOT_DIR`           | ERROR   | путь установки должен быть директорией                                    |
+| `MODULE_INSTALL_INDEX_NOT_FOUND`   | ERROR   | в директории install отсутствует обязательный файл index.php              |
+| `MODULE_INSTALL_VERSION_NOT_FOUND` | ERROR   | в директории install отсутствует обязательный файл version.php            |
+| `MODULE_LANG_INSTALL_NOT_FOUND`    | WARNING | не найден файл локализации lang/ru/install/index.php                      |
+| `MODULE_INSTALL_ID_MISMATCH`       | ERROR   | MODULE_ID в install/index.php не совпадает с module.id                    |
+| `MODULE_VERSION_DATE_INVALID`      | ERROR   | VERSION_DATE в install/version.php отсутствует или имеет неверный формат  |
+| `BUILD_SOURCE_DIR_REQUIRED`        | ERROR   | поле build.sourceDir обязательно для заполнения                           |
+| `BUILD_SOURCE_DIR_NOT_FOUND`       | ERROR   | исходная директория не найдена                                            |
+| `BUILD_SOURCE_DIR_STAT_ERROR`      | WARNING | ошибка при проверке исходной директории                                   |
+| `BUILD_SOURCE_DIR_NOT_DIR`         | ERROR   | исходный путь должен быть директорией                                     |
+| `BUILD_OUTPUT_DIR_REQUIRED`        | ERROR   | поле build.outputDir обязательно для заполнения                           |
+| `OUTPUT_DIR_EQUALS_SOURCE_DIR`     | ERROR   | outputDir не должен совпадать с sourceDir                                 |
+| `BUILD_STAGING_DIR_REQUIRED`       | ERROR   | поле build.stagingDir обязательно для заполнения                          |
+| `STAGING_DIR_EQUALS_OUTPUT_DIR`    | ERROR   | stagingDir не должен совпадать с outputDir                                |
+| `STAGING_DIR_EQUALS_SOURCE_DIR`    | ERROR   | stagingDir не должен совпадать с sourceDir                                |
+| `BUILD_ARCHIVE_NAME_REQUIRED`      | ERROR   | поле build.archiveName обязательно для заполнения                         |
+| `EXCLUDE_PATTERN_EMPTY`            | WARNING | в списке exclude не должно быть пустых строк                              |
+| `FORBIDDEN_PATH_FOUND`             | WARNING | обнаружен запрещенный путь в исходниках                                   |
+| `FORBIDDEN_PATH_SCAN_ERROR`        | WARNING | ошибка при сканировании запрещенных путей                                 |
+| `MODULE_VERSION_SCHEME_INVALID`    | ERROR   | неизвестная схема версионирования                                         |
 
 ### Коды выхода
 
@@ -345,35 +370,30 @@ CI/CD.
 
 ## Требования
 
-- Go 1.25 или выше (для самостоятельной сборки).
+- Go 1.26 или выше (для самостоятельной сборки).
 - Соответствие структуры модуля стандартам 1С-Битрикс.
-
-## Ограничения MVP
-
-- Только ZIP-архивы.
-- Валидация под стандарты 1С-Битрикс Marketplace.
-- Исключения по glob-паттернам (не полные regex).
-- Нет поддержки подписей, мультиархивов или кастомных валидаторов.
-- Только stdlib зависимости.
 
 ## Roadmap
 
 - Расширенные валидаторы (лицензии, состав install/db, дополнительные lang-файлы).
-- tar.gz и другие форматы.
 - Плагины для валидации.
 - Лучшая CI/CD интеграция.
 - GUI версия.
-- 
+
 ## Лицензия и поддержка
 
-Данный инструмент распространяется под лицензией **GNU GPL v3**. Это означает, что вы можете свободно использовать, изменять и распространять его, при условии сохранения той же лицензии для производных работ.
+Данный инструмент распространяется под лицензией **GNU GPL v3**. Это означает, что вы можете
+свободно использовать, изменять и распространять его, при условии сохранения той же лицензии
+для производных работ.
 
 ### Коммерческие услуги
 
 Если вашему бизнесу требуются дополнительные возможности, я предлагаю:
 
-1.  **Техническая поддержка**: Приоритетное исправление ошибок, помощь в настройке пайплайнов и консультации по стандартам маркетплейса.
-2.  **Платный GUI**: Удобное графическое приложение для тех, кто предпочитает интерфейс вместо терминала (в разработке).
-3.  **Кастомная разработка**: Добавление специфических валидаторов под нужды вашей компании.
+1. **Техническая поддержка**: Приоритетное исправление ошибок, помощь в настройке пайплайнов и
+   консультации по стандартам маркетплейса.
+2. **Платный GUI**: Удобное графическое приложение для тех, кто предпочитает интерфейс вместо
+   терминала (в разработке).
+3. **Кастомная разработка**: Добавление специфических валидаторов под нужды вашей компании.
 
 По всем вопросам пишите на: [negry.work@yandex.ru](mailto:negry.work@yandex.ru)

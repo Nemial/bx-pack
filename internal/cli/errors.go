@@ -36,8 +36,7 @@ func GetExitCode(err error) int {
 	if err == nil {
 		return ExitSuccess
 	}
-	var cliErr *CLIError
-	if errors.As(err, &cliErr) {
+	if cliErr, ok := errors.AsType[*CLIError](err); ok {
 		return cliErr.Code
 	}
 	// По умолчанию возвращаем 1 для системных ошибок Cobra (флаги, аргументы)

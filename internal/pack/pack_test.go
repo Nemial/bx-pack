@@ -1,12 +1,15 @@
 package pack
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"io"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"bx-pack/internal/config"
@@ -27,6 +30,20 @@ func writeTestFiles(t *testing.T, root string, files map[string]string) {
 }
 
 func readArchiveEntries(t *testing.T, archivePath string) map[string]string {
+	t.Helper()
+
+	switch {
+	case strings.HasSuffix(archivePath, ".tar.gz"):
+		return readTarGzArchiveEntries(t, archivePath)
+	case strings.HasSuffix(archivePath, ".zip"):
+		return readZIPArchiveEntries(t, archivePath)
+	default:
+		t.Fatalf("unsupported archive format for %q", archivePath)
+		return nil
+	}
+}
+
+func readZIPArchiveEntries(t *testing.T, archivePath string) map[string]string {
 	t.Helper()
 
 	r, err := zip.OpenReader(archivePath)
@@ -56,6 +73,55 @@ func readArchiveEntries(t *testing.T, archivePath string) map[string]string {
 		}
 
 		entries[f.Name] = string(content)
+	}
+
+	return entries
+}
+
+func readTarGzArchiveEntries(t *testing.T, archivePath string) map[string]string {
+	t.Helper()
+
+	f, err := os.Open(archivePath)
+	if err != nil {
+		t.Fatalf("open archive %q: %v", archivePath, err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Fatalf("close archive %q: %v", archivePath, err)
+		}
+	}()
+
+	gzipReader, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatalf("open gzip stream %q: %v", archivePath, err)
+	}
+	defer func() {
+		if err := gzipReader.Close(); err != nil {
+			t.Fatalf("close gzip stream %q: %v", archivePath, err)
+		}
+	}()
+
+	tarReader := tar.NewReader(gzipReader)
+	entries := make(map[string]string)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("read tar header in %q: %v", archivePath, err)
+		}
+		if header.FileInfo().IsDir() {
+			continue
+		}
+
+		content, err := io.ReadAll(tarReader)
+		if err != nil {
+			t.Fatalf("read tar entry %q: %v", header.Name, err)
+		}
+
+		entries[header.Name] = string(content)
 	}
 
 	return entries
@@ -110,64 +176,85 @@ func assertExactEntries(t *testing.T, got, want map[string]string) {
 }
 
 func TestBuildPipeline(t *testing.T) {
-	tempDir := t.TempDir()
-
-	sourceDir := filepath.Join(tempDir, "source")
-	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name        string
+		archiveName string
+		wantArchive string
+	}{
+		{
+			name:        "zip",
+			archiveName: "{module.id}-{module.version}.zip",
+			wantArchive: "test.module-1.2.3.zip",
+		},
+		{
+			name:        "tar.gz",
+			archiveName: "{module.id}-{module.version}.tar.gz",
+			wantArchive: "test.module-1.2.3.tar.gz",
+		},
 	}
 
-	files := map[string]string{
-		"include.txt":               "content of include.txt",
-		"nested/include2.txt":       "content of nested/include2.txt",
-		"exclude.txt":               "content of exclude.txt",
-		"excluded/some.txt":         "content of excluded/some.txt",
-		".git/config":               "git config content",
-		"nested/excluded_in_nested": "should be excluded",
-		"exclude.txt.bak":           "should NOT be excluded",
-	}
-	writeTestFiles(t, sourceDir, files)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
 
-	cfg := config.Default()
-	cfg.Module.ID = "test.module"
-	cfg.Module.Version = "1.2.3"
-	cfg.Build.SourceDir = sourceDir
-	cfg.Build.OutputDir = filepath.Join(tempDir, "dist")
-	cfg.Build.StagingDir = filepath.Join(tempDir, ".bxpack/staging")
-	cfg.Exclude = []string{
-		"exclude.txt",
-		"excluded",
-		".git",
-		"nested/excluded_in_nested",
-	}
+			sourceDir := filepath.Join(tempDir, "source")
+			if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
 
-	if err := PrepareStaging(cfg); err != nil {
-		t.Fatalf("PrepareStaging failed: %v", err)
-	}
+			files := map[string]string{
+				"include.txt":               "content of include.txt",
+				"nested/include2.txt":       "content of nested/include2.txt",
+				"exclude.txt":               "content of exclude.txt",
+				"excluded/some.txt":         "content of excluded/some.txt",
+				".git/config":               "git config content",
+				"nested/excluded_in_nested": "should be excluded",
+				"exclude.txt.bak":           "should NOT be excluded",
+			}
+			writeTestFiles(t, sourceDir, files)
 
-	expectedEntries := map[string]string{
-		"include.txt":         files["include.txt"],
-		"nested/include2.txt": files["nested/include2.txt"],
-		"exclude.txt.bak":     files["exclude.txt.bak"],
-	}
-	assertExactEntries(t, readStagedFiles(t, cfg.Build.StagingDir), expectedEntries)
+			cfg := config.Default()
+			cfg.Module.ID = "test.module"
+			cfg.Module.Version = "1.2.3"
+			cfg.Build.SourceDir = sourceDir
+			cfg.Build.OutputDir = filepath.Join(tempDir, "dist")
+			cfg.Build.StagingDir = filepath.Join(tempDir, ".bxpack/staging")
+			cfg.Build.ArchiveName = tt.archiveName
+			cfg.Exclude = []string{
+				"exclude.txt",
+				"excluded",
+				".git",
+				"nested/excluded_in_nested",
+			}
 
-	archivePath, err := CreateArchive(cfg)
-	if err != nil {
-		t.Fatalf("CreateArchive failed: %v", err)
-	}
+			if err := PrepareStaging(cfg); err != nil {
+				t.Fatalf("PrepareStaging failed: %v", err)
+			}
 
-	expectedArchiveName := "test.module-1.2.3.zip"
-	if filepath.Base(archivePath) != expectedArchiveName {
-		t.Errorf("expected archive name %s, got %s", expectedArchiveName, filepath.Base(archivePath))
-	}
+			expectedEntries := map[string]string{
+				"include.txt":         files["include.txt"],
+				"nested/include2.txt": files["nested/include2.txt"],
+				"exclude.txt.bak":     files["exclude.txt.bak"],
+			}
+			assertExactEntries(t, readStagedFiles(t, cfg.Build.StagingDir), expectedEntries)
 
-	expectedArchiveEntries := make(map[string]string)
-	baseDir := "test.module-1.2.3"
-	for k, v := range expectedEntries {
-		expectedArchiveEntries[baseDir+"/"+k] = v
+			archivePath, err := CreateArchive(cfg)
+			if err != nil {
+				t.Fatalf("CreateArchive failed: %v", err)
+			}
+
+			if filepath.Base(archivePath) != tt.wantArchive {
+				t.Errorf("expected archive name %s, got %s", tt.wantArchive, filepath.Base(archivePath))
+			}
+
+			expectedArchiveEntries := make(map[string]string)
+			baseDir := "test.module-1.2.3"
+			for k, v := range expectedEntries {
+				expectedArchiveEntries[baseDir+"/"+k] = v
+			}
+			assertExactEntries(t, readArchiveEntries(t, archivePath), expectedArchiveEntries)
+		})
 	}
-	assertExactEntries(t, readArchiveEntries(t, archivePath), expectedArchiveEntries)
 }
 
 func TestPrepareStaging_Errors(t *testing.T) {
@@ -463,4 +550,34 @@ func TestPrepareStaging_GlobExclusion(t *testing.T) {
 	}
 
 	assertExactEntries(t, staged, expected)
+}
+
+func TestCreateArchive_UnsupportedFormat(t *testing.T) {
+	tempDir := t.TempDir()
+
+	sourceDir := filepath.Join(tempDir, "source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	writeTestFiles(t, sourceDir, map[string]string{
+		"file.txt": "content",
+	})
+
+	cfg := config.Default()
+	cfg.Module.ID = "test.module"
+	cfg.Module.Version = "1.2.3"
+	cfg.Build.SourceDir = sourceDir
+	cfg.Build.OutputDir = filepath.Join(tempDir, "dist")
+	cfg.Build.StagingDir = filepath.Join(tempDir, ".bxpack/staging")
+	cfg.Build.ArchiveName = "{module.id}-{module.version}.rar"
+
+	if err := PrepareStaging(cfg); err != nil {
+		t.Fatalf("PrepareStaging failed: %v", err)
+	}
+
+	_, err := CreateArchive(cfg)
+	if err == nil {
+		t.Fatal("expected error for unsupported archive format")
+	}
 }
