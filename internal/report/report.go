@@ -55,10 +55,15 @@ func (r *textReporter) SetCommand(command string) {
 
 func (r *textReporter) PrintIssues(issues []validate.Issue) error {
 	for _, issue := range issues {
-		if issue.Severity == validate.Error {
-			fmt.Fprintln(r.err, r.styleError(issue.String()))
-		} else if issue.Severity == validate.Warning {
-			fmt.Fprintln(r.w, r.styleWarning(issue.String()))
+		switch issue.Severity {
+		case validate.Error:
+			if _, err := fmt.Fprintln(r.err, r.styleError(issue.String())); err != nil {
+				return err
+			}
+		case validate.Warning:
+			if _, err := fmt.Fprintln(r.w, r.styleWarning(issue.String())); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -69,9 +74,10 @@ func (r *textReporter) PrintValidationResult(issues []validate.Issue) error {
 	warningsCount := 0
 
 	for _, issue := range issues {
-		if issue.Severity == validate.Error {
+		switch issue.Severity {
+		case validate.Error:
 			errorsCount++
-		} else if issue.Severity == validate.Warning {
+		case validate.Warning:
 			warningsCount++
 		}
 	}
@@ -79,70 +85,98 @@ func (r *textReporter) PrintValidationResult(issues []validate.Issue) error {
 	_ = r.PrintIssues(issues)
 
 	if len(issues) > 0 {
-		fmt.Fprintf(
+		_, err := fmt.Fprintf(
 			r.w,
 			"\n%s\n",
 			r.styleSummary(fmt.Sprintf("Итог: Валидация завершена. Ошибок: %d, предупреждений: %d.", errorsCount, warningsCount)),
 		)
+		if err != nil {
+			return err
+		}
 	} else {
-		fmt.Fprintln(r.w, r.styleSuccess("Готово: Валидация прошла успешно. Ошибок не обнаружено."))
+		_, err := fmt.Fprintln(r.w, r.styleSuccess("Готово: Валидация прошла успешно. Ошибок не обнаружено."))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (r *textReporter) PrintSummary(archivePath string) error {
-	fmt.Fprintf(
+	_, err := fmt.Fprintf(
 		r.w,
 		"%s\n%s\n",
 		r.styleSuccess("Готово: Сборка успешно завершена!"),
 		r.styleSummary(fmt.Sprintf("Итог: Архив создан: %s", archivePath)),
 	)
-	return nil
+	return err
 }
 
 func (r *textReporter) PrintConfigError(err error) error {
-	fmt.Fprintf(r.err, "%s\n", r.styleError(fmt.Sprintf("Ошибка конфигурации: %v", err)))
-	return nil
+	_, writeErr := fmt.Fprintf(r.err, "%s\n", r.styleError(fmt.Sprintf("Ошибка конфигурации: %v", err)))
+	return writeErr
 }
 
 func (r *textReporter) PrintSuccess(msg string) error {
-	fmt.Fprintf(r.w, "%s\n", r.styleSuccess(fmt.Sprintf("Готово: %s", msg)))
-	return nil
+	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSuccess(fmt.Sprintf("Готово: %s", msg)))
+	return err
 }
 
 func (r *textReporter) PrintInfo(msg string) error {
-	fmt.Fprintf(r.w, "%s\n", r.styleInfo(msg))
-	return nil
+	_, err := fmt.Fprintf(r.w, "%s\n", r.styleInfo(msg))
+	return err
 }
 
 func (r *textReporter) PrintDryRunPlan(cfg config.Config, archivePath string) error {
-	fmt.Fprintf(r.w, "\n%s\n", r.styleSummary("--- ПЛАН СБОРКИ (DRY RUN) ---"))
-	fmt.Fprintf(r.w, "Модуль:      %s (версия %s)\n", cfg.Module.ID, cfg.Module.Version)
-	fmt.Fprintf(r.w, "Исходники:   %s\n", cfg.Build.SourceDir)
-	fmt.Fprintf(r.w, "Staging:     %s\n", cfg.Build.StagingDir)
-	fmt.Fprintf(r.w, "Output:      %s\n", cfg.Build.OutputDir)
-	fmt.Fprintf(r.w, "Имя архива:  %s\n", archivePath)
+	if _, err := fmt.Fprintf(r.w, "\n%s\n", r.styleSummary("--- ПЛАН СБОРКИ (DRY RUN) ---")); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(r.w, "Модуль:      %s (версия %s)\n", cfg.Module.ID, cfg.Module.Version); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(r.w, "Исходники:   %s\n", cfg.Build.SourceDir); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(r.w, "Staging:     %s\n", cfg.Build.StagingDir); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(r.w, "Output:      %s\n", cfg.Build.OutputDir); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(r.w, "Имя архива:  %s\n", archivePath); err != nil {
+		return err
+	}
 
 	if len(cfg.Exclude) > 0 {
-		fmt.Fprintf(r.w, "\n%s\n", r.styleSummary("Исключения:"))
+		if _, err := fmt.Fprintf(r.w, "\n%s\n", r.styleSummary("Исключения:")); err != nil {
+			return err
+		}
 		for _, exc := range cfg.Exclude {
-			fmt.Fprintf(r.w, "  - %s\n", exc)
+			if _, err := fmt.Fprintf(r.w, "  - %s\n", exc); err != nil {
+				return err
+			}
 		}
 	}
-	fmt.Fprintf(r.w, "%s\n", r.styleSummary("----------------------------"))
-	fmt.Fprintln(r.w, "")
-	fmt.Fprintln(r.w, r.styleInfo("Dry run завершен. Файлы не были изменены."))
+	if _, err := fmt.Fprintf(r.w, "%s\n", r.styleSummary("----------------------------")); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(r.w, ""); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(r.w, r.styleInfo("Dry run завершен. Файлы не были изменены.")); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (r *textReporter) PrintVersion(version string) error {
-	fmt.Fprintf(r.w, "%s\n", r.styleSummary(fmt.Sprintf("Версия модуля: %s", version)))
-	return nil
+	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSummary(fmt.Sprintf("Версия модуля: %s", version)))
+	return err
 }
 
 func (r *textReporter) PrintVersionBump(oldVersion, newVersion string) error {
-	fmt.Fprintf(r.w, "%s\n", r.styleSuccess(fmt.Sprintf("Версия обновлена: %s -> %s", oldVersion, newVersion)))
-	return nil
+	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSuccess(fmt.Sprintf("Версия обновлена: %s -> %s", oldVersion, newVersion)))
+	return err
 }
 
 func (r *textReporter) Finalize() error {
@@ -188,10 +222,11 @@ func (r *jsonReporter) PrintIssues(issues []validate.Issue) error {
 	r.report.Findings = append(r.report.Findings, issues...)
 
 	for _, issue := range issues {
-		if issue.Severity == validate.Error {
+		switch issue.Severity {
+		case validate.Error:
 			r.report.Success = false
 			r.report.Errors = append(r.report.Errors, issue.Message)
-		} else if issue.Severity == validate.Warning {
+		case validate.Warning:
 			r.report.Warnings = append(r.report.Warnings, issue.Message)
 		}
 	}

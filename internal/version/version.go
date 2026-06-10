@@ -24,7 +24,8 @@ const (
 )
 
 func parseAssign(line, varName string) (prefix, operator, quote, value string, ok bool) {
-	if varName == "VERSION" {
+	switch varName {
+	case "VERSION":
 		for _, re := range []*regexp.Regexp{versionDoubleRE, versionSingleRE} {
 			match := re.FindStringSubmatch(line)
 			if len(match) == 3 {
@@ -45,7 +46,7 @@ func parseAssign(line, varName string) (prefix, operator, quote, value string, o
 				return match[1], actualVarName + " " + op, q, strings.TrimSpace(match[2]), true
 			}
 		}
-	} else if varName == "VERSION_DATE" {
+	case "VERSION_DATE":
 		for _, re := range []*regexp.Regexp{dateDoubleRE, dateSingleRE} {
 			match := re.FindStringSubmatch(line)
 			if len(match) == 3 {

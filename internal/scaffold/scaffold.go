@@ -12,6 +12,9 @@ import (
 
 	"bx-pack/internal/config"
 	"bx-pack/internal/report"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 //go:embed templates/*
@@ -78,12 +81,18 @@ func Run(reporter report.Reporter, dryRun bool) error {
 	}
 
 	if dryRun {
-		reporter.PrintInfo("Режим dry-run: файлы не будут созданы.")
+		err := reporter.PrintInfo("Режим dry-run: файлы не будут созданы.")
+		if err != nil {
+			return err
+		}
 	}
 
 	for _, dir := range dirs {
 		if dryRun {
-			reporter.PrintInfo(fmt.Sprintf("Будет создана директория: %s", dir))
+			err := reporter.PrintInfo(fmt.Sprintf("Будет создана директория: %s", dir))
+			if err != nil {
+				return err
+			}
 			continue
 		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -96,13 +105,19 @@ func Run(reporter report.Reporter, dryRun bool) error {
 
 	for path, content := range files {
 		if dryRun {
-			reporter.PrintInfo(fmt.Sprintf("Будет создан файл: %s", path))
+			err := reporter.PrintInfo(fmt.Sprintf("Будет создан файл: %s", path))
+			if err != nil {
+				return err
+			}
 			continue
 		}
 
 		// Проверяем существование
 		if _, err := os.Stat(path); err == nil {
-			reporter.PrintInfo(fmt.Sprintf("Файл %s уже существует, пропуск", path))
+			err := reporter.PrintInfo(fmt.Sprintf("Файл %s уже существует, пропуск", path))
+			if err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -115,12 +130,21 @@ func Run(reporter report.Reporter, dryRun bool) error {
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			return fmt.Errorf("ошибка записи файла %s: %w", path, err)
 		}
-		reporter.PrintInfo(fmt.Sprintf("Создан файл: %s", path))
+		err := reporter.PrintInfo(fmt.Sprintf("Создан файл: %s", path))
+		if err != nil {
+			return err
+		}
 	}
 
 	if !dryRun {
-		reporter.PrintSuccess("Базовая структура модуля успешно создана!")
-		reporter.PrintInfo("Теперь вы можете настроить .bxpack.yml и запустить 'bx-pack validate'")
+		err := reporter.PrintSuccess("Базовая структура модуля успешно создана!")
+		if err != nil {
+			return err
+		}
+		err = reporter.PrintInfo("Теперь вы можете настроить .bxpack.yml и запустить 'bx-pack validate'")
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -141,9 +165,12 @@ func getSuggestedModuleID() string {
 func prepareTemplateData(moduleID string) templateData {
 	className := strings.ReplaceAll(moduleID, ".", "_")
 	parts := strings.Split(moduleID, ".")
+
 	var namespaceParts []string
+	caser := cases.Title(language.Und)
+
 	for _, p := range parts {
-		namespaceParts = append(namespaceParts, strings.Title(p))
+		namespaceParts = append(namespaceParts, caser.String(p))
 	}
 
 	return templateData{

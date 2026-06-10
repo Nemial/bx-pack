@@ -64,7 +64,7 @@ bx-pack version bump patch`),
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if reporter != nil {
-				reporter.Finalize()
+				_ = reporter.Finalize()
 			}
 		},
 		SilenceErrors: true,

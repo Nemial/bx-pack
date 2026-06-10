@@ -13,8 +13,8 @@ import (
 func TestJSONOutput_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	// Setup a project
 	cfg := config.Default()
@@ -35,7 +35,7 @@ func TestJSONOutput_Integration(t *testing.T) {
 		if err != nil {
 			t.Logf("Validate returned error (expected if issues found): %v", err)
 		}
-		reporter.Finalize()
+		_ = reporter.Finalize()
 
 		var res report.JSONReport
 		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
@@ -57,7 +57,7 @@ func TestJSONOutput_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Build failed: %v\nOutput: %s", err, buf.String())
 		}
-		reporter.Finalize()
+		_ = reporter.Finalize()
 
 		var res report.JSONReport
 		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
@@ -91,7 +91,7 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 		if err != nil {
 			t.Fatalf("VersionShow failed: %v\nOutput: %s", err, buf.String())
 		}
-		reporter.Finalize()
+		_ = reporter.Finalize()
 
 		var res report.JSONReport
 		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
@@ -125,7 +125,7 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 		if err != nil {
 			t.Fatalf("VersionBump failed: %v\nOutput: %s", err, buf.String())
 		}
-		reporter.Finalize()
+		_ = reporter.Finalize()
 
 		var res report.JSONReport
 		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {

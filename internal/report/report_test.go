@@ -93,7 +93,10 @@ func TestTextReporter_PrintIssues_Simple(t *testing.T) {
 		{Code: "ERR_001", Message: "Error", Severity: validate.Error},
 		{Code: "WARN_001", Message: "Warning", Severity: validate.Warning},
 	}
-	r.PrintIssues(issues)
+	err := r.PrintIssues(issues)
+	if err != nil {
+		return
+	}
 
 	if !strings.Contains(stderr.String(), "Ошибка проверки: Error (ERR_001)") {
 		t.Errorf("stderr should contain error message, got %q", stderr.String())
@@ -210,9 +213,18 @@ func TestJSONReporter(t *testing.T) {
 		{Code: "WARN1", Message: "Warning 1", Severity: validate.Warning},
 	}
 
-	r.PrintIssues(issues)
-	r.PrintSummary("/path/to/zip")
-	r.Finalize()
+	err := r.PrintIssues(issues)
+	if err != nil {
+		return
+	}
+	err = r.PrintSummary("/path/to/zip")
+	if err != nil {
+		return
+	}
+	err = r.Finalize()
+	if err != nil {
+		return
+	}
 
 	got := buf.String()
 	// Проверяем наличие ключевых полей и значений, не завязываясь на форматирование (хотя Finalize его задает)

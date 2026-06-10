@@ -1,19 +1,20 @@
 package scaffold_test
 
 import (
-	"bx-pack/internal/cli"
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"bx-pack/internal/cli"
+	"bx-pack/internal/config"
+	"bx-pack/internal/report"
 )
 
 func TestScaffold_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	defer os.Chdir(origWd)
-	os.Chdir(tmpDir)
+	defer t.Chdir(origWd)
+	t.Chdir(tmpDir)
 
 	reporter := report.NewReporter(report.TextFormat)
 
@@ -41,7 +42,7 @@ func TestScaffold_Integration(t *testing.T) {
 
 	// 2. Тест dry-run в другой временной директории
 	tmpDirDry := t.TempDir()
-	os.Chdir(tmpDirDry)
+	t.Chdir(tmpDirDry)
 
 	err = cli.Scaffold(reporter, true)
 	if err != nil {
@@ -55,8 +56,8 @@ func TestScaffold_Integration(t *testing.T) {
 		}
 	}
 
-	// 3. Тест на неперезаписывание существующих файлов
-	os.Chdir(tmpDir) // Возвращаемся в первую директорию
+	// 3. Тест на не перезаписывавшие существующих файлов
+	t.Chdir(tmpDir)
 	existingContent := "CUSTOM CONTENT"
 	customFile := "install/version.php"
 	err = os.WriteFile(customFile, []byte(existingContent), 0644)
@@ -87,8 +88,8 @@ func TestScaffold_SuggestedID(t *testing.T) {
 	}
 
 	origWd, _ := os.Getwd()
-	defer os.Chdir(origWd)
-	os.Chdir(moduleDir)
+	defer t.Chdir(origWd)
+	t.Chdir(moduleDir)
 
 	reporter := report.NewReporter(report.TextFormat)
 	err = cli.Scaffold(reporter, false)

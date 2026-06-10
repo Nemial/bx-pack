@@ -44,8 +44,8 @@ func writeValidModuleFixture(t *testing.T, moduleID, version string) {
 func TestInit_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	// 1. First init
 	reporter := report.NewReporter(report.TextFormat)
@@ -68,8 +68,8 @@ func TestInit_Integration(t *testing.T) {
 func TestBuild_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	// Setup minimal valid project
 	cfg := config.Default()
@@ -109,8 +109,8 @@ func TestBuild_Integration(t *testing.T) {
 func TestBuild_TarGz_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	cfg := config.Default()
 	cfg.Module.ID = "test.integration.targz"
@@ -148,8 +148,8 @@ func TestBuild_TarGz_Integration(t *testing.T) {
 func TestBuild_DryRun_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	// Setup minimal valid project
 	cfg := config.Default()
@@ -185,8 +185,8 @@ func TestBuild_DryRun_Integration(t *testing.T) {
 func TestValidate_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	// Setup invalid project
 	cfg := config.Default()
@@ -206,8 +206,8 @@ func TestValidate_Integration(t *testing.T) {
 func TestValidate_InvalidVersionFile_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	cfg := config.Default()
 	cfg.Module.ID = "test.invalid.version"
@@ -244,8 +244,8 @@ func TestValidate_InvalidVersionFile_Integration(t *testing.T) {
 func TestVersionShow_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	// 1. Success case
 	cfg := config.Default()
@@ -291,8 +291,8 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 func TestVersionBump_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	cfg := config.Default()
 	cfg.Module.Install = "install"
@@ -346,8 +346,8 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 func TestVersionBump_PreservesConfigComments(t *testing.T) {
 	tmpDir := t.TempDir()
 	origWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origWd)
+	t.Chdir(tmpDir)
+	defer t.Chdir(origWd)
 
 	configContent := `module:
   id: "example.module"

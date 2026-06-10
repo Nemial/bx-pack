@@ -278,7 +278,7 @@ func TestPrepareStaging_Errors(t *testing.T) {
 		}
 
 		// Try to use this file path as staging dir (MkdirAll should fail)
-		// Wait, MkdirAll might not fail if it's already there, but if we need to create subdirs it will.
+		// Wait, MkdirAll might not fail if it's already there, but if we need to create subdirs, it will.
 		cfg := config.Default()
 		cfg.Build.StagingDir = filepath.Join(stagingPath, "subdir")
 
@@ -516,10 +516,22 @@ func TestPrepareStaging_GlobExclusion(t *testing.T) {
 		"readme.txt":          "readme",
 	}
 	// Создаем директории вручную, так как writeTestFiles может не создавать их для пустых путей (хотя здесь пути с файлами)
-	os.MkdirAll(filepath.Join(sourceDir, "install"), 0755)
-	os.MkdirAll(filepath.Join(sourceDir, "tests"), 0755)
-	os.MkdirAll(filepath.Join(sourceDir, "logs"), 0755)
-	os.MkdirAll(filepath.Join(sourceDir, "temp/cache"), 0755)
+	err := os.MkdirAll(filepath.Join(sourceDir, "install"), 0755)
+	if err != nil {
+		return
+	}
+	err = os.MkdirAll(filepath.Join(sourceDir, "tests"), 0755)
+	if err != nil {
+		return
+	}
+	err = os.MkdirAll(filepath.Join(sourceDir, "logs"), 0755)
+	if err != nil {
+		return
+	}
+	err = os.MkdirAll(filepath.Join(sourceDir, "temp/cache"), 0755)
+	if err != nil {
+		return
+	}
 
 	writeTestFiles(t, sourceDir, files)
 
@@ -537,7 +549,7 @@ func TestPrepareStaging_GlobExclusion(t *testing.T) {
 		},
 	}
 
-	err := PrepareStaging(cfg)
+	err = PrepareStaging(cfg)
 	if err != nil {
 		t.Fatalf("PrepareStaging failed: %v", err)
 	}

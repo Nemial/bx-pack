@@ -17,18 +17,21 @@ func Init(reporter report.Reporter) error {
 	reporter.SetCommand("init")
 	if _, err := os.Stat(config.DefaultConfigPath); err == nil {
 		err := fmt.Errorf("файл конфигурации %q уже существует", config.DefaultConfigPath)
-		reporter.PrintConfigError(err)
+		err = reporter.PrintConfigError(err)
+		if err != nil {
+			return err
+		}
 		return NewCLIError(ExitConfigErr, err)
 	}
 
 	content := config.GenerateTemplate()
 	if err := os.WriteFile(config.DefaultConfigPath, []byte(content), 0644); err != nil {
 		err := fmt.Errorf("ошибка записи шаблона конфигурации: %w", err)
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
-	reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
+	_ = reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
 	return nil
 }
 
@@ -40,24 +43,24 @@ func Validate(reporter report.Reporter) error {
 	reporter.SetCommand("validate")
 	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
 	issues := validate.RunWithResolvedVersion(&cfg)
-	reporter.PrintValidationResult(issues)
+	_ = reporter.PrintValidationResult(issues)
 
 	for _, issue := range issues {
 		if issue.Severity == validate.Error {
-			reporter.PrintSuccess("Валидация завершилась с ошибками")
+			_ = reporter.PrintSuccess("Валидация завершилась с ошибками")
 			return NewCLIError(ExitValError, fmt.Errorf("валидация завершилась с ошибками"))
 		}
 	}
 
 	if len(issues) == 0 {
-		reporter.PrintSuccess("Валидация прошла успешно")
+		_ = reporter.PrintSuccess("Валидация прошла успешно")
 	} else {
-		reporter.PrintSuccess("Валидация завершена с предупреждениями")
+		_ = reporter.PrintSuccess("Валидация завершена с предупреждениями")
 	}
 
 	return nil
@@ -67,7 +70,7 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	reporter.SetCommand("build")
 	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
@@ -83,13 +86,13 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	}
 
 	if hasErrors {
-		reporter.PrintIssues(issues)
+		_ = reporter.PrintIssues(issues)
 		return NewCLIError(ExitValError, fmt.Errorf("сборка невозможна: валидация завершилась с ошибками"))
 	}
 
 	// Выводим предупреждения, если они есть
 	if len(issues) > 0 {
-		reporter.PrintIssues(issues)
+		_ = reporter.PrintIssues(issues)
 	}
 
 	archivePath := pack.GetArchivePath(cfg)
@@ -99,23 +102,23 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	}
 
 	// 2. Prepare staging
-	reporter.PrintInfo("Подготовка временной директории...")
+	_ = reporter.PrintInfo("Подготовка временной директории...")
 	if err := pack.PrepareStaging(cfg); err != nil {
 		err := fmt.Errorf("подготовка staging: %w", err)
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
 	// 3. Create archive
-	reporter.PrintInfo("Создание архива...")
+	_ = reporter.PrintInfo("Создание архива...")
 	archivePath, err = pack.CreateArchive(cfg)
 	if err != nil {
 		err := fmt.Errorf("создание архива: %w", err)
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitValError, err)
 	}
 
-	reporter.PrintSummary(archivePath)
+	_ = reporter.PrintSummary(archivePath)
 	return nil
 }
 
@@ -123,7 +126,7 @@ func VersionShow(reporter report.Reporter) error {
 	reporter.SetCommand("version show")
 	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
-		reporter.PrintConfigError(fmt.Errorf("загрузка конфигурации: %w", err))
+		_ = reporter.PrintConfigError(fmt.Errorf("загрузка конфигурации: %w", err))
 		return NewCLIError(ExitConfigErr, err)
 	}
 
@@ -136,16 +139,16 @@ func VersionShow(reporter report.Reporter) error {
 		} else {
 			err = fmt.Errorf("ошибка доступа к файлу версии %s: %w", versionFile, err)
 		}
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
 	ver, err := version.ParseVersion(versionFile)
 	if err != nil {
-		reporter.PrintConfigError(fmt.Errorf("чтение версии: %w", err))
+		_ = reporter.PrintConfigError(fmt.Errorf("чтение версии: %w", err))
 		return NewCLIError(ExitValError, err)
 	}
-	reporter.PrintVersion(ver)
+	_ = reporter.PrintVersion(ver)
 	return nil
 }
 
@@ -153,7 +156,7 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 	reporter.SetCommand(fmt.Sprintf("version bump %s", bumpLevel))
 	cfg, err := config.Load(config.DefaultConfigPath) // Здесь Load нужен без ApplyDefaults/Normalize для проверки versionInConfig
 	if err != nil {
-		reporter.PrintConfigError(err)
+		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
@@ -165,7 +168,7 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 	path := filepath.Join(cfg.Build.SourceDir, cfg.Module.Install, "version.php")
 	oldVer, newVer, err := version.BumpVersion(path, cfg.Module.VersionScheme, bumpLevel)
 	if err != nil {
-		reporter.PrintConfigError(fmt.Errorf("обновление версии в %s: %w", path, err))
+		_ = reporter.PrintConfigError(fmt.Errorf("обновление версии в %s: %w", path, err))
 		return NewCLIError(ExitValError, err)
 	}
 
@@ -173,11 +176,11 @@ func VersionBump(reporter report.Reporter, bumpLevel string) error {
 	if versionInConfig != "" {
 		if err := config.UpdateModuleVersion(config.DefaultConfigPath, newVer); err != nil {
 			err = fmt.Errorf("обновление %s: %w", config.DefaultConfigPath, err)
-			reporter.PrintConfigError(err)
+			_ = reporter.PrintConfigError(err)
 			return NewCLIError(ExitConfigErr, err)
 		}
 	}
 
-	reporter.PrintVersionBump(oldVer, newVer)
+	_ = reporter.PrintVersionBump(oldVer, newVer)
 	return nil
 }
