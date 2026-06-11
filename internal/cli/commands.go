@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 	"bx-pack/internal/version"
 )
 
-func Init(reporter report.Reporter) error {
+func Init(reporter report.InitReporter) error {
 	reporter.SetCommand("init")
 	if _, err := os.Stat(config.DefaultConfigPath); err == nil {
 		err := fmt.Errorf("файл конфигурации %q уже существует", config.DefaultConfigPath)
@@ -25,21 +26,21 @@ func Init(reporter report.Reporter) error {
 	}
 
 	content := config.GenerateTemplate()
-	if err := os.WriteFile(config.DefaultConfigPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(config.DefaultConfigPath, []byte(content), 0o600); err != nil {
 		err := fmt.Errorf("ошибка записи шаблона конфигурации: %w", err)
 		_ = reporter.PrintConfigError(err)
 		return NewCLIError(ExitConfigErr, err)
 	}
 
-	_ = reporter.PrintSuccess(fmt.Sprintf("Создан стандартный шаблон конфигурации: %s", config.DefaultConfigPath))
+	_ = reporter.PrintSuccess("Создан стандартный шаблон конфигурации: " + config.DefaultConfigPath)
 	return nil
 }
 
-func Scaffold(reporter report.Reporter, dryRun bool) error {
+func Scaffold(reporter report.ScaffoldReporter, dryRun bool) error {
 	return scaffold.Run(reporter, dryRun)
 }
 
-func Validate(reporter report.Reporter) error {
+func Validate(reporter report.ValidationReporter) error {
 	reporter.SetCommand("validate")
 	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
@@ -53,7 +54,7 @@ func Validate(reporter report.Reporter) error {
 	for _, issue := range issues {
 		if issue.Severity == validate.Error {
 			_ = reporter.PrintSuccess("Валидация завершилась с ошибками")
-			return NewCLIError(ExitValError, fmt.Errorf("валидация завершилась с ошибками"))
+			return NewCLIError(ExitValError, errors.New("валидация завершилась с ошибками"))
 		}
 	}
 
@@ -66,7 +67,7 @@ func Validate(reporter report.Reporter) error {
 	return nil
 }
 
-func Build(reporter report.Reporter, dryRun bool) error {
+func Build(reporter report.BuildReporter, dryRun bool) error {
 	reporter.SetCommand("build")
 	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
@@ -87,7 +88,7 @@ func Build(reporter report.Reporter, dryRun bool) error {
 
 	if hasErrors {
 		_ = reporter.PrintIssues(issues)
-		return NewCLIError(ExitValError, fmt.Errorf("сборка невозможна: валидация завершилась с ошибками"))
+		return NewCLIError(ExitValError, errors.New("сборка невозможна: валидация завершилась с ошибками"))
 	}
 
 	// Выводим предупреждения, если они есть
@@ -122,7 +123,7 @@ func Build(reporter report.Reporter, dryRun bool) error {
 	return nil
 }
 
-func VersionShow(reporter report.Reporter) error {
+func VersionShow(reporter report.VersionReporter) error {
 	reporter.SetCommand("version show")
 	cfg, err := config.LoadAndPrepare(config.DefaultConfigPath)
 	if err != nil {
@@ -152,8 +153,8 @@ func VersionShow(reporter report.Reporter) error {
 	return nil
 }
 
-func VersionBump(reporter report.Reporter, bumpLevel string) error {
-	reporter.SetCommand(fmt.Sprintf("version bump %s", bumpLevel))
+func VersionBump(reporter report.VersionReporter, bumpLevel string) error {
+	reporter.SetCommand("version bump " + bumpLevel)
 	cfg, err := config.Load(config.DefaultConfigPath) // Здесь Load нужен без ApplyDefaults/Normalize для проверки versionInConfig
 	if err != nil {
 		_ = reporter.PrintConfigError(err)

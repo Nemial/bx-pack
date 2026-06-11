@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"errors"
 	"io"
 	"maps"
 	"os"
@@ -20,10 +21,10 @@ func writeTestFiles(t *testing.T, root string, files map[string]string) {
 
 	for path, content := range files {
 		fullPath := filepath.Join(root, path)
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o750); err != nil {
 			t.Fatalf("create parent dir for %q: %v", path, err)
 		}
-		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
 			t.Fatalf("write file %q: %v", path, err)
 		}
 	}
@@ -81,6 +82,7 @@ func readZIPArchiveEntries(t *testing.T, archivePath string) map[string]string {
 func readTarGzArchiveEntries(t *testing.T, archivePath string) map[string]string {
 	t.Helper()
 
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	f, err := os.Open(archivePath)
 	if err != nil {
 		t.Fatalf("open archive %q: %v", archivePath, err)
@@ -106,7 +108,7 @@ func readTarGzArchiveEntries(t *testing.T, archivePath string) map[string]string
 
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -144,6 +146,7 @@ func readStagedFiles(t *testing.T, stagingDir string) map[string]string {
 			return err
 		}
 
+		//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -198,7 +201,7 @@ func TestBuildPipeline(t *testing.T) {
 			tempDir := t.TempDir()
 
 			sourceDir := filepath.Join(tempDir, "source")
-			if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+			if err := os.MkdirAll(sourceDir, 0o750); err != nil {
 				t.Fatal(err)
 			}
 
@@ -273,7 +276,7 @@ func TestPrepareStaging_Errors(t *testing.T) {
 		// Create a file where the staging directory should be
 		tmpDir := t.TempDir()
 		stagingPath := filepath.Join(tmpDir, "staging-file")
-		if err := os.WriteFile(stagingPath, []byte("not a dir"), 0644); err != nil {
+		if err := os.WriteFile(stagingPath, []byte("not a dir"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -293,7 +296,7 @@ func TestPathSafety(t *testing.T) {
 	t.Run("exclude staging and output even if inside source", func(t *testing.T) {
 		tempDir := t.TempDir()
 		sourceDir := filepath.Join(tempDir, "src")
-		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		if err := os.MkdirAll(sourceDir, 0o750); err != nil {
 			t.Fatal(err)
 		}
 
@@ -329,7 +332,7 @@ func TestPathSafety(t *testing.T) {
 	t.Run("exclude internal directories if inside source", func(t *testing.T) {
 		tempDir := t.TempDir()
 		sourceDir := filepath.Join(tempDir, "src")
-		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		if err := os.MkdirAll(sourceDir, 0o750); err != nil {
 			t.Fatal(err)
 		}
 
@@ -516,19 +519,19 @@ func TestPrepareStaging_GlobExclusion(t *testing.T) {
 		"readme.txt":          "readme",
 	}
 	// Создаем директории вручную, так как writeTestFiles может не создавать их для пустых путей (хотя здесь пути с файлами)
-	err := os.MkdirAll(filepath.Join(sourceDir, "install"), 0755)
+	err := os.MkdirAll(filepath.Join(sourceDir, "install"), 0750)
 	if err != nil {
 		return
 	}
-	err = os.MkdirAll(filepath.Join(sourceDir, "tests"), 0755)
+	err = os.MkdirAll(filepath.Join(sourceDir, "tests"), 0750)
 	if err != nil {
 		return
 	}
-	err = os.MkdirAll(filepath.Join(sourceDir, "logs"), 0755)
+	err = os.MkdirAll(filepath.Join(sourceDir, "logs"), 0750)
 	if err != nil {
 		return
 	}
-	err = os.MkdirAll(filepath.Join(sourceDir, "temp/cache"), 0755)
+	err = os.MkdirAll(filepath.Join(sourceDir, "temp/cache"), 0750)
 	if err != nil {
 		return
 	}
@@ -568,7 +571,7 @@ func TestCreateArchive_UnsupportedFormat(t *testing.T) {
 	tempDir := t.TempDir()
 
 	sourceDir := filepath.Join(tempDir, "source")
-	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+	if err := os.MkdirAll(sourceDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 

@@ -61,7 +61,7 @@ func PrepareStaging(cfg config.Config) error {
 		return fmt.Errorf("cleanup staging dir: %w", err)
 	}
 
-	if err := os.MkdirAll(cfg.Build.StagingDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.Build.StagingDir, 0o750); err != nil {
 		return fmt.Errorf("create staging dir: %w", err)
 	}
 
@@ -119,7 +119,7 @@ func GetArchivePath(cfg config.Config) string {
 }
 
 func CreateArchive(cfg config.Config) (string, error) {
-	if err := os.MkdirAll(cfg.Build.OutputDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.Build.OutputDir, 0o750); err != nil {
 		return "", fmt.Errorf("create output dir: %w", err)
 	}
 
@@ -132,6 +132,7 @@ func CreateArchive(cfg config.Config) (string, error) {
 	archivePath := filepath.Join(cfg.Build.OutputDir, archiveName)
 	baseDirName := archiveBaseName(archiveName, format)
 
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	outFile, err := os.Create(archivePath)
 	if err != nil {
 		return "", fmt.Errorf("create archive file: %w", err)
@@ -227,6 +228,7 @@ func writeZIPArchive(w *zip.Writer, stagingDir, baseDirName string) error {
 			return err
 		}
 
+		//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 		in, err := os.Open(path)
 		if err != nil {
 			return err
@@ -252,6 +254,7 @@ func writeTarArchive(w *tar.Writer, stagingDir, baseDirName string) error {
 			return err
 		}
 
+		//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 		in, err := os.Open(path)
 		if err != nil {
 			return err
@@ -264,12 +267,14 @@ func writeTarArchive(w *tar.Writer, stagingDir, baseDirName string) error {
 }
 
 func copyFile(src, dst string) error {
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
 
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	out, err := os.Create(dst)
 	if err != nil {
 		return err

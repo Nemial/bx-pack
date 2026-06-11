@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,6 +84,7 @@ func ApplyDefaults(cfg Config) Config {
 }
 
 func Load(path string) (Config, error) {
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, fmt.Errorf("read config file %q: %w", path, err)
@@ -118,7 +120,7 @@ func Save(cfg Config, path string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("write config file %q: %w", path, err)
 	}
 
@@ -126,6 +128,7 @@ func Save(cfg Config, path string) error {
 }
 
 func UpdateModuleVersion(path string, newVersion string) error {
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read config file %q: %w", path, err)
@@ -136,7 +139,8 @@ func UpdateModuleVersion(path string, newVersion string) error {
 		return err
 	}
 
-	if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
+	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
 		return fmt.Errorf("write config file %q: %w", path, err)
 	}
 
@@ -184,7 +188,7 @@ func replaceModuleVersion(content string, newVersion string) (string, error) {
 	}
 
 	if !versionUpdated {
-		return "", fmt.Errorf("module.version not found in module section")
+		return "", errors.New("module.version not found in module section")
 	}
 
 	return strings.Join(lines, "\n"), nil
@@ -257,7 +261,7 @@ func GenerateTemplate() string {
 func GenerateForModuleID(moduleID string) (string, error) {
 	tmplContent := GenerateTemplate()
 	if tmplContent == "" {
-		return "", fmt.Errorf("config template not found")
+		return "", errors.New("config template not found")
 	}
 
 	tmpl, err := template.New("config").Parse(tmplContent)

@@ -60,7 +60,7 @@ func TestScaffold_Integration(t *testing.T) {
 	t.Chdir(tmpDir)
 	existingContent := "CUSTOM CONTENT"
 	customFile := "install/version.php"
-	err = os.WriteFile(customFile, []byte(existingContent), 0644)
+	err = os.WriteFile(customFile, []byte(existingContent), 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestScaffold_Integration(t *testing.T) {
 func TestScaffold_SuggestedID(t *testing.T) {
 	tmpDir := t.TempDir()
 	moduleDir := filepath.Join(tmpDir, "vendor.mymodule")
-	err := os.MkdirAll(moduleDir, 0755)
+	err := os.MkdirAll(moduleDir, 0750)
 	if err != nil {
 		t.Fatal(err)
 	}

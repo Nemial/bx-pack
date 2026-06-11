@@ -88,7 +88,7 @@ func TestConfig_Load_Error(t *testing.T) {
 
 	t.Run("invalid yaml", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "invalid.yml")
-		if err := os.WriteFile(path, []byte("invalid: yaml: :"), 0644); err != nil {
+		if err := os.WriteFile(path, []byte("invalid: yaml: :"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -155,7 +155,7 @@ build:
 exclude:
   - ".git"
 `
-		if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -163,6 +163,7 @@ exclude:
 			t.Fatalf("UpdateModuleVersion failed: %v", err)
 		}
 
+		//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 		updated, err := os.ReadFile(cfgPath)
 		if err != nil {
 			t.Fatal(err)
@@ -192,7 +193,7 @@ exclude:
  version: '1.2.3'
  versionScheme: "semver"
 `
-		if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -200,6 +201,7 @@ exclude:
 			t.Fatalf("UpdateModuleVersion failed: %v", err)
 		}
 
+		//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 		updated, err := os.ReadFile(cfgPath)
 		if err != nil {
 			t.Fatal(err)
@@ -217,7 +219,7 @@ exclude:
  id: "vendor.module"
  versionScheme: "semver"
 `
-		if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(cfgPath, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 

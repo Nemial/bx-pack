@@ -34,7 +34,7 @@ type templateData struct {
 }
 
 // Run выполняет генерацию базовой структуры модуля.
-func Run(reporter report.Reporter, dryRun bool) error {
+func Run(reporter report.ScaffoldReporter, dryRun bool) error {
 	reporter.SetCommand("scaffold")
 
 	// Определяем ID модуля (пытаемся взять из текущей папки или дефолт)
@@ -87,25 +87,48 @@ func Run(reporter report.Reporter, dryRun bool) error {
 		}
 	}
 
+	if err := createDirectories(reporter, dirs, dryRun); err != nil {
+		return err
+	}
+
+	if err := createFiles(reporter, files, dryRun); err != nil {
+		return err
+	}
+
+	if !dryRun {
+		err := reporter.PrintSuccess("Базовая структура модуля успешно создана!")
+		if err != nil {
+			return err
+		}
+		err = reporter.PrintInfo("Теперь вы можете настроить .bxpack.yml и запустить 'bx-pack validate'")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func createDirectories(reporter report.ScaffoldReporter, dirs []string, dryRun bool) error {
 	for _, dir := range dirs {
 		if dryRun {
-			err := reporter.PrintInfo(fmt.Sprintf("Будет создана директория: %s", dir))
+			err := reporter.PrintInfo("Будет создана директория: " + dir)
 			if err != nil {
 				return err
 			}
 			continue
 		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("ошибка создания директории %s: %w", dir, err)
 		}
 	}
+	return nil
+}
 
-	// Сортируем ключи для детерминированного вывода (опционально, но полезно для тестов)
-	// Но здесь map, порядок не гарантирован.
-
+func createFiles(reporter report.ScaffoldReporter, files map[string]string, dryRun bool) error {
 	for path, content := range files {
 		if dryRun {
-			err := reporter.PrintInfo(fmt.Sprintf("Будет создан файл: %s", path))
+			err := reporter.PrintInfo("Будет создан файл: " + path)
 			if err != nil {
 				return err
 			}
@@ -123,30 +146,18 @@ func Run(reporter report.Reporter, dryRun bool) error {
 
 		// Создаем поддиректории для файла
 		dir := filepath.Dir(path)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("ошибка создания директории для %s: %w", path, err)
 		}
 
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 			return fmt.Errorf("ошибка записи файла %s: %w", path, err)
 		}
-		err := reporter.PrintInfo(fmt.Sprintf("Создан файл: %s", path))
+		err := reporter.PrintInfo("Создан файл: " + path)
 		if err != nil {
 			return err
 		}
 	}
-
-	if !dryRun {
-		err := reporter.PrintSuccess("Базовая структура модуля успешно создана!")
-		if err != nil {
-			return err
-		}
-		err = reporter.PrintInfo("Теперь вы можете настроить .bxpack.yml и запустить 'bx-pack validate'")
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -166,7 +177,7 @@ func prepareTemplateData(moduleID string) templateData {
 	className := strings.ReplaceAll(moduleID, ".", "_")
 	parts := strings.Split(moduleID, ".")
 
-	var namespaceParts []string
+	namespaceParts := make([]string, 0, len(parts))
 	caser := cases.Title(language.Und)
 
 	for _, p := range parts {

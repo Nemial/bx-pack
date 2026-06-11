@@ -26,52 +26,39 @@ const (
 func parseAssign(line, varName string) (prefix, operator, quote, value string, ok bool) {
 	switch varName {
 	case "VERSION":
-		for _, re := range []*regexp.Regexp{versionDoubleRE, versionSingleRE} {
-			match := re.FindStringSubmatch(line)
-			if len(match) == 3 {
-				q := "\""
-				if re == versionSingleRE {
-					q = "'"
-				}
-				op := "="
-				if strings.Contains(match[0], "=>") {
-					op = "=>"
-				}
-				var actualVarName string
-				if strings.Contains(match[0], "$VERSION") {
-					actualVarName = "$VERSION"
-				} else {
-					actualVarName = q + "VERSION" + q
-				}
-				return match[1], actualVarName + " " + op, q, strings.TrimSpace(match[2]), true
-			}
-		}
+		return matchAssign(line, []*regexp.Regexp{versionDoubleRE, versionSingleRE}, "VERSION")
 	case "VERSION_DATE":
-		for _, re := range []*regexp.Regexp{dateDoubleRE, dateSingleRE} {
-			match := re.FindStringSubmatch(line)
-			if len(match) == 3 {
-				q := "\""
-				if re == dateSingleRE {
-					q = "'"
-				}
-				op := "="
-				if strings.Contains(match[0], "=>") {
-					op = "=>"
-				}
-				var actualVarName string
-				if strings.Contains(match[0], "$VERSION_DATE") {
-					actualVarName = "$VERSION_DATE"
-				} else {
-					actualVarName = q + "VERSION_DATE" + q
-				}
-				return match[1], actualVarName + " " + op, q, strings.TrimSpace(match[2]), true
+		return matchAssign(line, []*regexp.Regexp{dateDoubleRE, dateSingleRE}, "VERSION_DATE")
+	}
+	return "", "", "", "", false
+}
+
+func matchAssign(line string, res []*regexp.Regexp, varName string) (prefix, operator, quote, value string, ok bool) {
+	for _, re := range res {
+		match := re.FindStringSubmatch(line)
+		if len(match) == 3 {
+			q := "\""
+			if strings.Contains(re.String(), `'`+varName+`'`) {
+				q = "'"
 			}
+			op := "="
+			if strings.Contains(match[0], "=>") {
+				op = "=>"
+			}
+			var actualVarName string
+			if strings.Contains(match[0], "$"+varName) {
+				actualVarName = "$" + varName
+			} else {
+				actualVarName = q + varName + q
+			}
+			return match[1], actualVarName + " " + op, q, strings.TrimSpace(match[2]), true
 		}
 	}
 	return "", "", "", "", false
 }
 
 func ParseVersion(path string) (string, error) {
+	// #nosec G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("чтение файла %q: %w", path, err)
@@ -87,6 +74,7 @@ func ParseVersion(path string) (string, error) {
 }
 
 func BumpVersion(path string, scheme string, bumpLevel string) (oldVersion, newVersion string, err error) {
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", "", fmt.Errorf("чтение файла %q: %w", path, err)
@@ -139,7 +127,9 @@ func BumpVersion(path string, scheme string, bumpLevel string) (oldVersion, newV
 	if !strings.HasSuffix(newData, "\n") {
 		newData += "\n"
 	}
-	if err := os.WriteFile(path, []byte(newData), 0644); err != nil {
+
+	//nolint:gosec // G304: путь берется из конфигурационного файла пользователя, что допустимо в локальной CLI-утилите
+	if err := os.WriteFile(path, []byte(newData), 0600); err != nil {
 		return "", "", fmt.Errorf("запись файла %q: %w", path, err)
 	}
 	return oldVer, newVer, nil

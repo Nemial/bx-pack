@@ -66,7 +66,7 @@ $VERSION_DATE = '2024-01-01';
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "version.php")
-			err := os.WriteFile(path, []byte(tt.content), 0o644)
+			err := os.WriteFile(path, []byte(tt.content), 0o600)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -200,11 +200,11 @@ func TestBumpVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "version.php")
-			err := os.WriteFile(path, []byte(tt.content), 0o644)
+			err := os.WriteFile(path, []byte(tt.content), 0o600)
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, new, err := BumpVersion(path, tt.scheme, tt.bumpLevel)
+			_, newVer, err := BumpVersion(path, tt.scheme, tt.bumpLevel)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("BumpVersion() error = nil, wantErr true")
@@ -215,8 +215,8 @@ func TestBumpVersion(t *testing.T) {
 				t.Errorf("BumpVersion() error = %v, wantErr false", err)
 				return
 			}
-			if new != tt.wantVer {
-				t.Errorf("BumpVersion() new = %q, want %q", new, tt.wantVer)
+			if newVer != tt.wantVer {
+				t.Errorf("BumpVersion() new = %q, want %q", newVer, tt.wantVer)
 			}
 		})
 	}

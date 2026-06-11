@@ -18,18 +18,138 @@ const (
 	JSONFormat Format = "json"
 )
 
-type Reporter interface {
+type CommandReporter interface {
 	SetCommand(command string)
-	PrintIssues(issues []validate.Issue) error
-	PrintValidationResult(issues []validate.Issue) error
-	PrintSummary(archivePath string) error
+}
+
+type ConfigErrorReporter interface {
 	PrintConfigError(err error) error
+}
+
+type SuccessReporter interface {
 	PrintSuccess(msg string) error
+}
+
+type InfoReporter interface {
 	PrintInfo(msg string) error
+}
+
+type IssuesReporter interface {
+	PrintIssues(issues []validate.Issue) error
+}
+
+type ValidationResultReporter interface {
+	PrintValidationResult(issues []validate.Issue) error
+}
+
+type SummaryReporter interface {
+	PrintSummary(archivePath string) error
+}
+
+type DryRunReporter interface {
 	PrintDryRunPlan(cfg config.Config, archivePath string) error
+}
+
+type ModuleVersionReporter interface {
 	PrintVersion(version string) error
 	PrintVersionBump(oldVersion, newVersion string) error
+}
+
+type Finalizer interface {
 	Finalize() error
+}
+
+type InitReporter interface {
+	CommandReporter
+	ConfigErrorReporter
+	SuccessReporter
+}
+
+type ScaffoldReporter interface {
+	CommandReporter
+	InfoReporter
+	SuccessReporter
+}
+
+type ValidationReporter interface {
+	CommandReporter
+	ConfigErrorReporter
+	SuccessReporter
+	IssuesReporter
+	ValidationResultReporter
+}
+
+type BuildReporter interface {
+	CommandReporter
+	ConfigErrorReporter
+	InfoReporter
+	IssuesReporter
+	DryRunReporter
+	SummaryReporter
+}
+
+type VersionReporter interface {
+	CommandReporter
+	ConfigErrorReporter
+	ModuleVersionReporter
+}
+
+type Reporter struct {
+	setCommand            func(command string)
+	printIssues           func(issues []validate.Issue) error
+	printValidationResult func(issues []validate.Issue) error
+	printSummary          func(archivePath string) error
+	printConfigError      func(err error) error
+	printSuccess          func(msg string) error
+	printInfo             func(msg string) error
+	printDryRunPlan       func(cfg config.Config, archivePath string) error
+	printVersion          func(version string) error
+	printVersionBump      func(oldVersion, newVersion string) error
+	finalize              func() error
+}
+
+func (r *Reporter) SetCommand(command string) {
+	r.setCommand(command)
+}
+
+func (r *Reporter) PrintIssues(issues []validate.Issue) error {
+	return r.printIssues(issues)
+}
+
+func (r *Reporter) PrintValidationResult(issues []validate.Issue) error {
+	return r.printValidationResult(issues)
+}
+
+func (r *Reporter) PrintSummary(archivePath string) error {
+	return r.printSummary(archivePath)
+}
+
+func (r *Reporter) PrintConfigError(err error) error {
+	return r.printConfigError(err)
+}
+
+func (r *Reporter) PrintSuccess(msg string) error {
+	return r.printSuccess(msg)
+}
+
+func (r *Reporter) PrintInfo(msg string) error {
+	return r.printInfo(msg)
+}
+
+func (r *Reporter) PrintDryRunPlan(cfg config.Config, archivePath string) error {
+	return r.printDryRunPlan(cfg, archivePath)
+}
+
+func (r *Reporter) PrintVersion(version string) error {
+	return r.printVersion(version)
+}
+
+func (r *Reporter) PrintVersionBump(oldVersion, newVersion string) error {
+	return r.printVersionBump(oldVersion, newVersion)
+}
+
+func (r *Reporter) Finalize() error {
+	return r.finalize()
 }
 
 type textReporter struct {
@@ -40,12 +160,26 @@ type textReporter struct {
 	stderrStyled bool
 }
 
-func NewTextReporter(w, err io.Writer) Reporter {
-	return &textReporter{
+func NewTextReporter(w, err io.Writer) *Reporter {
+	impl := &textReporter{
 		w:            w,
 		err:          err,
 		stdoutStyled: shouldUseANSI(w),
 		stderrStyled: shouldUseANSI(err),
+	}
+
+	return &Reporter{
+		setCommand:            impl.SetCommand,
+		printIssues:           impl.PrintIssues,
+		printValidationResult: impl.PrintValidationResult,
+		printSummary:          impl.PrintSummary,
+		printConfigError:      impl.PrintConfigError,
+		printSuccess:          impl.PrintSuccess,
+		printInfo:             impl.PrintInfo,
+		printDryRunPlan:       impl.PrintDryRunPlan,
+		printVersion:          impl.PrintVersion,
+		printVersionBump:      impl.PrintVersionBump,
+		finalize:              impl.Finalize,
 	}
 }
 
@@ -107,7 +241,7 @@ func (r *textReporter) PrintSummary(archivePath string) error {
 		r.w,
 		"%s\n%s\n",
 		r.styleSuccess("Готово: Сборка успешно завершена!"),
-		r.styleSummary(fmt.Sprintf("Итог: Архив создан: %s", archivePath)),
+		r.styleSummary("Итог: Архив создан: "+archivePath),
 	)
 	return err
 }
@@ -118,7 +252,7 @@ func (r *textReporter) PrintConfigError(err error) error {
 }
 
 func (r *textReporter) PrintSuccess(msg string) error {
-	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSuccess(fmt.Sprintf("Готово: %s", msg)))
+	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSuccess("Готово: "+msg))
 	return err
 }
 
@@ -170,7 +304,7 @@ func (r *textReporter) PrintDryRunPlan(cfg config.Config, archivePath string) er
 }
 
 func (r *textReporter) PrintVersion(version string) error {
-	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSummary(fmt.Sprintf("Версия модуля: %s", version)))
+	_, err := fmt.Fprintf(r.w, "%s\n", r.styleSummary("Версия модуля: "+version))
 	return err
 }
 
@@ -202,12 +336,26 @@ type jsonReporter struct {
 	report JSONReport
 }
 
-func NewJSONReporter(w io.Writer) Reporter {
-	return &jsonReporter{
+func NewJSONReporter(w io.Writer) *Reporter {
+	impl := &jsonReporter{
 		w: w,
 		report: JSONReport{
 			Success: true,
 		},
+	}
+
+	return &Reporter{
+		setCommand:            impl.SetCommand,
+		printIssues:           impl.PrintIssues,
+		printValidationResult: impl.PrintValidationResult,
+		printSummary:          impl.PrintSummary,
+		printConfigError:      impl.PrintConfigError,
+		printSuccess:          impl.PrintSuccess,
+		printInfo:             impl.PrintInfo,
+		printDryRunPlan:       impl.PrintDryRunPlan,
+		printVersion:          impl.PrintVersion,
+		printVersionBump:      impl.PrintVersionBump,
+		finalize:              impl.Finalize,
 	}
 }
 
@@ -239,7 +387,7 @@ func (r *jsonReporter) PrintValidationResult(issues []validate.Issue) error {
 
 func (r *jsonReporter) PrintSummary(archivePath string) error {
 	r.report.ArchivePath = archivePath
-	r.report.Summary = fmt.Sprintf("Архив создан: %s", archivePath)
+	r.report.Summary = "Архив создан: " + archivePath
 	return nil
 }
 
@@ -267,7 +415,7 @@ func (r *jsonReporter) PrintDryRunPlan(cfg config.Config, archivePath string) er
 
 func (r *jsonReporter) PrintVersion(version string) error {
 	r.report.Version = version
-	r.report.Summary = fmt.Sprintf("Версия модуля: %s", version)
+	r.report.Summary = "Версия модуля: " + version
 	return nil
 }
 
@@ -287,11 +435,11 @@ func (r *jsonReporter) Finalize() error {
 	return nil
 }
 
-func NewReporter(format Format) Reporter {
+func NewReporter(format Format) *Reporter {
 	return NewReporterWithWriter(format, os.Stdout, os.Stderr)
 }
 
-func NewReporterWithWriter(format Format, w, err io.Writer) Reporter {
+func NewReporterWithWriter(format Format, w, err io.Writer) *Reporter {
 	switch format {
 	case JSONFormat:
 		return NewJSONReporter(w)

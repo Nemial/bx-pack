@@ -108,7 +108,7 @@ func Run(cfg config.Config) []Issue {
 		ValidateForbiddenPaths,
 	}
 
-	var allIssues []Issue
+	allIssues := make([]Issue, 0, len(issues)+len(validators))
 	allIssues = append(allIssues, issues...)
 	for _, v := range validators {
 		allIssues = append(allIssues, v(cfg)...)
@@ -139,7 +139,7 @@ func RunWithResolvedVersion(cfg *config.Config) []Issue {
 		ValidateForbiddenPaths,
 	}
 
-	var allIssues []Issue
+	allIssues := make([]Issue, 0, len(issues)+len(validators))
 	allIssues = append(allIssues, issues...)
 	for _, v := range validators {
 		allIssues = append(allIssues, v(*cfg)...)
@@ -247,6 +247,7 @@ func ValidateInstallIndexModuleID(cfg config.Config) []Issue {
 	}
 
 	indexPath := filepath.Join(installDirPath(cfg), "index.php")
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	data, err := os.ReadFile(indexPath)
 	if err != nil {
 		return nil
@@ -279,6 +280,7 @@ func ValidateInstallVersionDate(cfg config.Config) []Issue {
 	}
 
 	versionPath := filepath.Join(installDirPath(cfg), "version.php")
+	//nolint:gosec // G304 - путь контролируется пользователем через конфигурационный файл утилиты
 	data, err := os.ReadFile(versionPath)
 	if err != nil {
 		return nil

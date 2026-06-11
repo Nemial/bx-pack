@@ -38,9 +38,14 @@ func Run(args []string) int {
 
 func NewRootCmd() *cobra.Command {
 	var (
-		formatStr string
-		dryRun    bool
-		reporter  report.Reporter
+		formatStr        string
+		dryRun           bool
+		initReporter     report.InitReporter
+		scaffoldReporter report.ScaffoldReporter
+		validateReporter report.ValidationReporter
+		buildReporter    report.BuildReporter
+		versionReporter  report.VersionReporter
+		finalizer        report.Finalizer
 	)
 
 	rootCmd := &cobra.Command{
@@ -59,12 +64,18 @@ bx-pack version bump patch`),
 			if format != report.JSONFormat && format != report.TextFormat {
 				return NewCLIError(ExitUsageErr, fmt.Errorf("неизвестный формат %q", formatStr))
 			}
-			reporter = report.NewReporter(format)
+			r := report.NewReporter(format)
+			initReporter = r
+			scaffoldReporter = r
+			validateReporter = r
+			buildReporter = r
+			versionReporter = r
+			finalizer = r
 			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if reporter != nil {
-				_ = reporter.Finalize()
+			if finalizer != nil {
+				_ = finalizer.Finalize()
 			}
 		},
 		SilenceErrors: true,
@@ -76,17 +87,17 @@ bx-pack version bump patch`),
 	rootCmd.PersistentFlags().StringVarP(&formatStr, "format", "f", "text", "Формат вывода (text, json)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Показать план без создания файлов")
 
-	rootCmd.AddCommand(newInitCmd(&reporter))
-	rootCmd.AddCommand(newScaffoldCmd(&reporter, &dryRun))
-	rootCmd.AddCommand(newValidateCmd(&reporter))
-	rootCmd.AddCommand(newBuildCmd(&reporter, &dryRun))
-	rootCmd.AddCommand(newVersionCmd(&reporter))
+	rootCmd.AddCommand(newInitCmd(&initReporter))
+	rootCmd.AddCommand(newScaffoldCmd(&scaffoldReporter, &dryRun))
+	rootCmd.AddCommand(newValidateCmd(&validateReporter))
+	rootCmd.AddCommand(newBuildCmd(&buildReporter, &dryRun))
+	rootCmd.AddCommand(newVersionCmd(&versionReporter))
 	localizeHelpFlags(rootCmd)
 
 	return rootCmd
 }
 
-func newInitCmd(reporter *report.Reporter) *cobra.Command {
+func newInitCmd(reporter *report.InitReporter) *cobra.Command {
 	return &cobra.Command{
 		Use:     "init",
 		Short:   "Инициализировать новый проект",
@@ -97,7 +108,7 @@ func newInitCmd(reporter *report.Reporter) *cobra.Command {
 	}
 }
 
-func newScaffoldCmd(reporter *report.Reporter, dryRun *bool) *cobra.Command {
+func newScaffoldCmd(reporter *report.ScaffoldReporter, dryRun *bool) *cobra.Command {
 	return &cobra.Command{
 		Use:     "scaffold",
 		Short:   "Создать структуру Bitrix-модуля",
@@ -108,7 +119,7 @@ func newScaffoldCmd(reporter *report.Reporter, dryRun *bool) *cobra.Command {
 	}
 }
 
-func newValidateCmd(reporter *report.Reporter) *cobra.Command {
+func newValidateCmd(reporter *report.ValidationReporter) *cobra.Command {
 	return &cobra.Command{
 		Use:     "validate",
 		Short:   "Проверить конфигурацию",
@@ -119,7 +130,7 @@ func newValidateCmd(reporter *report.Reporter) *cobra.Command {
 	}
 }
 
-func newBuildCmd(reporter *report.Reporter, dryRun *bool) *cobra.Command {
+func newBuildCmd(reporter *report.BuildReporter, dryRun *bool) *cobra.Command {
 	return &cobra.Command{
 		Use:     "build",
 		Short:   "Собрать архив проекта",
@@ -130,7 +141,7 @@ func newBuildCmd(reporter *report.Reporter, dryRun *bool) *cobra.Command {
 	}
 }
 
-func newVersionCmd(reporter *report.Reporter) *cobra.Command {
+func newVersionCmd(reporter *report.VersionReporter) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "version",
 		Short:   "Управление версией модуля",
@@ -297,7 +308,7 @@ func localizeHelpFlags(rootCmd *cobra.Command) {
 	visit = func(cmd *cobra.Command) {
 		cmd.InitDefaultHelpFlag()
 		if flag := cmd.Flags().Lookup("help"); flag != nil {
-			flag.Usage = fmt.Sprintf("Показать справку%s", helpFlagSuffix(cmd))
+			flag.Usage = "Показать справку" + helpFlagSuffix(cmd)
 		}
 		for _, subCmd := range cmd.Commands() {
 			visit(subCmd)
@@ -310,7 +321,7 @@ func helpFlagSuffix(cmd *cobra.Command) string {
 	if cmd == nil || cmd.Name() == "" {
 		return ""
 	}
-	return fmt.Sprintf(" для %s", cmd.CommandPath())
+	return " для " + cmd.CommandPath()
 }
 
 func isValidBumpLevel(level string) bool {

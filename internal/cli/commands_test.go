@@ -13,10 +13,10 @@ import (
 func writeValidModuleFixture(t *testing.T, moduleID, version string) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Join("install"), 0o755); err != nil {
+	if err := os.MkdirAll("install", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join("lang", "ru", "install"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join("lang", "ru", "install"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -24,19 +24,19 @@ func writeValidModuleFixture(t *testing.T, moduleID, version string) {
 		"$VERSION = \"" + version + "\";\n" +
 		"$VERSION_DATE = \"2026-01-01 00:00:00\";\n" +
 		"?>\n"
-	if err := os.WriteFile(filepath.Join("install", "version.php"), []byte(versionContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join("install", "version.php"), []byte(versionContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	indexContent := "<?php\n" +
 		"$MODULE_ID = \"" + moduleID + "\";\n" +
 		"?>\n"
-	if err := os.WriteFile(filepath.Join("install", "index.php"), []byte(indexContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join("install", "index.php"), []byte(indexContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	langContent := "<?php\n$MESS = [];\n"
-	if err := os.WriteFile(filepath.Join("lang", "ru", "install", "index.php"), []byte(langContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join("lang", "ru", "install", "index.php"), []byte(langContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -83,7 +83,7 @@ func TestBuild_Integration(t *testing.T) {
 
 	writeValidModuleFixture(t, cfg.Module.ID, cfg.Module.Version)
 
-	if err := os.WriteFile("readme.txt", []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile("readme.txt", []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -124,7 +124,7 @@ func TestBuild_TarGz_Integration(t *testing.T) {
 
 	writeValidModuleFixture(t, cfg.Module.ID, cfg.Module.Version)
 
-	if err := os.WriteFile("readme.txt", []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile("readme.txt", []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -215,19 +215,19 @@ func TestValidate_InvalidVersionFile_Integration(t *testing.T) {
 	cfg.Module.Version = ""
 	cfg.Module.Install = "install"
 
-	if err := os.MkdirAll(filepath.Join("install"), 0o755); err != nil {
+	if err := os.MkdirAll("install", 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join("lang", "ru", "install"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join("lang", "ru", "install"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0o644); err != nil {
+	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile("install/index.php", []byte("<?php\n$MODULE_ID = \""+cfg.Module.ID+"\";\n?>\n"), 0o644); err != nil {
+	if err := os.WriteFile("install/index.php", []byte("<?php\n$MODULE_ID = \""+cfg.Module.ID+"\";\n?>\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join("lang", "ru", "install", "index.php"), []byte("<?php\n$MESS = [];\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join("lang", "ru", "install", "index.php"), []byte("<?php\n$MESS = [];\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := config.Save(cfg, config.DefaultConfigPath); err != nil {
@@ -254,14 +254,14 @@ func TestVersionShow_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.Mkdir("install", 0755); err != nil {
+	if err := os.Mkdir("install", 0o750); err != nil {
 		t.Fatal(err)
 	}
 	versionContent := `<?php
 $VERSION = "1.2.3";
 $VERSION_DATE = "2023-01-01 00:00:00";
 ?>`
-	if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+	if err := os.WriteFile("install/version.php", []byte(versionContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -272,14 +272,16 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 	}
 
 	// 2. Missing file case
-	os.Remove("install/version.php")
+	if err := os.Remove("install/version.php"); err != nil {
+		t.Fatal(err)
+	}
 	err = VersionShow(reporter)
 	if err == nil {
 		t.Error("VersionShow should fail if version file is missing")
 	}
 
 	// 3. Invalid file case
-	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0644); err != nil {
+	if err := os.WriteFile("install/version.php", []byte("invalid content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	err = VersionShow(reporter)
@@ -300,14 +302,14 @@ func TestVersionBump_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.Mkdir("install", 0755); err != nil {
+	if err := os.Mkdir("install", 0o750); err != nil {
 		t.Fatal(err)
 	}
 	versionContent := `<?php
 $VERSION = "1.0.0";
 $VERSION_DATE = "2023-01-01 00:00:00";
 ?>`
-	if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+	if err := os.WriteFile("install/version.php", []byte(versionContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -334,7 +336,7 @@ $VERSION_DATE = "2023-01-01 00:00:00";
 	}
 
 	// 3. Invalid version format
-	if err := os.WriteFile("install/version.php", []byte(`<?php $VERSION = "1.0"; ?>`), 0644); err != nil {
+	if err := os.WriteFile("install/version.php", []byte(`<?php $VERSION = "1.0"; ?>`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	err = VersionBump(reporter, "patch")
@@ -363,18 +365,18 @@ build:
   archiveName: "{module.id}-{module.version}.zip"
 `
 
-	if err := os.WriteFile(config.DefaultConfigPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(config.DefaultConfigPath, []byte(configContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := os.Mkdir("install", 0755); err != nil {
+	if err := os.Mkdir("install", 0o750); err != nil {
 		t.Fatal(err)
 	}
 	versionContent := `<?php
 $VERSION = "1.0.0";
 $VERSION_DATE = "2023-01-01 00:00:00";
 ?>`
-	if err := os.WriteFile("install/version.php", []byte(versionContent), 0644); err != nil {
+	if err := os.WriteFile("install/version.php", []byte(versionContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
