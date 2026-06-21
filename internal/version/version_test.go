@@ -1,10 +1,12 @@
-package version
+package version_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"bx-pack/internal/version"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -70,7 +72,7 @@ $VERSION_DATE = '2024-01-01';
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ParseVersion(path)
+			got, err := version.ParseVersion(path)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("ParseVersion() error = nil, wantErr true")
@@ -204,7 +206,7 @@ func TestBumpVersion(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, newVer, err := BumpVersion(path, tt.scheme, tt.bumpLevel)
+			_, newVer, err := version.BumpVersion(path, tt.scheme, tt.bumpLevel)
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("BumpVersion() error = nil, wantErr true")

@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"os"
@@ -6,12 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	"bx-pack/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
 func TestApplyDefaults(t *testing.T) {
-	cfg := Config{}
-	cfg = ApplyDefaults(cfg)
+	cfg := config.Config{}
+	cfg = config.ApplyDefaults(cfg)
 
 	if cfg.Module.ID != "example.module" {
 		t.Errorf("expected default module id 'example.module', got %q", cfg.Module.ID)
@@ -28,14 +29,14 @@ func TestConfig_LoadSave(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, ".bxpack.yml")
 
-	cfg := Default()
+	cfg := config.Default()
 	cfg.Module.ID = "test.module"
 
-	if err := Save(cfg, cfgPath); err != nil {
+	if err := config.Save(cfg, cfgPath); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
 
-	loaded, err := Load(cfgPath)
+	loaded, err := config.Load(cfgPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
@@ -49,14 +50,14 @@ func TestLoadAndPrepare(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, ".bxpack.yml")
 
-	cfg := Config{}
+	cfg := config.Config{}
 	cfg.Module.ID = "test.module"
 	cfg.Build.SourceDir = "."
-	if err := Save(cfg, cfgPath); err != nil {
+	if err := config.Save(cfg, cfgPath); err != nil {
 		t.Fatalf("failed to save config: %v", err)
 	}
 
-	loaded, err := LoadAndPrepare(cfgPath)
+	loaded, err := config.LoadAndPrepare(cfgPath)
 	if err != nil {
 		t.Fatalf("failed to load and prepare config: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestConfig_Load_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := Load(filepath.Join(tmpDir, "missing.yml"))
+		_, err := config.Load(filepath.Join(tmpDir, "missing.yml"))
 		if err == nil {
 			t.Error("expected error for missing file, got nil")
 		}
@@ -92,7 +93,7 @@ func TestConfig_Load_Error(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err := Load(path)
+		_, err := config.Load(path)
 		if err == nil {
 			t.Error("expected error for invalid YAML, got nil")
 		}
@@ -100,7 +101,7 @@ func TestConfig_Load_Error(t *testing.T) {
 }
 
 func TestGenerateTemplate(t *testing.T) {
-	template := GenerateTemplate()
+	template := config.GenerateTemplate()
 	if template == "" {
 		t.Error("GenerateTemplate() returned empty string")
 	}
@@ -125,7 +126,7 @@ func TestGenerateTemplate(t *testing.T) {
 	}
 
 	// Проверка корректности YAML структуры (должна парситься)
-	var cfg Config
+	var cfg config.Config
 	err := yaml.Unmarshal([]byte(template), &cfg)
 	if err != nil {
 		t.Errorf("GenerateTemplate() output is not valid YAML: %v", err)
@@ -159,7 +160,7 @@ exclude:
 			t.Fatal(err)
 		}
 
-		if err := UpdateModuleVersion(cfgPath, "1.2.4"); err != nil {
+		if err := config.UpdateModuleVersion(cfgPath, "1.2.4"); err != nil {
 			t.Fatalf("UpdateModuleVersion failed: %v", err)
 		}
 
@@ -197,7 +198,7 @@ exclude:
 			t.Fatal(err)
 		}
 
-		if err := UpdateModuleVersion(cfgPath, "1.2.4"); err != nil {
+		if err := config.UpdateModuleVersion(cfgPath, "1.2.4"); err != nil {
 			t.Fatalf("UpdateModuleVersion failed: %v", err)
 		}
 
@@ -223,7 +224,7 @@ exclude:
 			t.Fatal(err)
 		}
 
-		err := UpdateModuleVersion(cfgPath, "1.2.4")
+		err := config.UpdateModuleVersion(cfgPath, "1.2.4")
 		if err == nil {
 			t.Fatal("expected error when module.version is missing")
 		}

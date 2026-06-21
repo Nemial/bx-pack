@@ -1,0 +1,24 @@
+{
+  "command": "test-cmd",
+  "success": false,
+  "errors": [
+    "Error 1"
+  ],
+  "warnings": [
+    "Warning 1"
+  ],
+  "findings": [
+    {
+      "Code": "ERR1",
+      "Message": "Error 1",
+      "Severity": "ERROR"
+    },
+    {
+      "Code": "WARN1",
+      "Message": "Warning 1",
+      "Severity": "WARNING"
+    }
+  ],
+  "summary": "Архив создан: /path/to/zip",
+  "archivePath": "/path/to/zip"
+}

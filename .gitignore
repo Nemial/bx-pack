@@ -2,4 +2,5 @@
 /.idea
 /.bxpack
 
-/.ai/mcp
+/.opencode
+coverage.out

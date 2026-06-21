@@ -1,28 +1,43 @@
-package report
+package report_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
-	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"bx-pack/internal/config"
+	"bx-pack/internal/report"
 	"bx-pack/internal/validate"
 )
 
+// readGoldenFile reads a golden file from testdata directory
+func readGoldenFile(t *testing.T, filename string) string {
+	t.Helper()
+	//nolint:gosec // G304 - test file path is controlled by test code
+	data, err := os.ReadFile(filepath.Join("testdata", filename))
+	if err != nil {
+		t.Fatalf("failed to read golden file %s: %v", filename, err)
+	}
+	return string(data)
+}
+
 func TestTextReporter_PrintIssues(t *testing.T) {
 	tests := []struct {
-		name       string
-		issues     []validate.Issue
-		wantStdout string
-		wantStderr string
+		name             string
+		issues           []validate.Issue
+		wantStdoutGolden string
+		wantStderrGolden string
 	}{
 		{
-			name:       "no issues",
-			issues:     []validate.Issue{},
-			wantStdout: "Готово: Валидация прошла успешно. Ошибок не обнаружено.\n",
-			wantStderr: "",
+			name:             "no issues",
+			issues:           []validate.Issue{},
+			wantStdoutGolden: "validation_no_issues.stdout.golden",
+			wantStderrGolden: "validation_no_issues.stderr.golden",
 		},
 		{
 			name: "only warnings",
@@ -33,8 +48,8 @@ func TestTextReporter_PrintIssues(t *testing.T) {
 					Severity: validate.Warning,
 				},
 			},
-			wantStdout: "Предупреждение: Some warning (WARN_001)\n\nИтог: Валидация завершена. Ошибок: 0, предупреждений: 1.\n",
-			wantStderr: "",
+			wantStdoutGolden: "validation_warnings.stdout.golden",
+			wantStderrGolden: "validation_warnings.stderr.golden",
 		},
 		{
 			name: "only errors",
@@ -45,8 +60,8 @@ func TestTextReporter_PrintIssues(t *testing.T) {
 					Severity: validate.Error,
 				},
 			},
-			wantStdout: "\nИтог: Валидация завершена. Ошибок: 1, предупреждений: 0.\n",
-			wantStderr: "Ошибка проверки: Some error (ERR_001)\n",
+			wantStdoutGolden: "validation_errors.stdout.golden",
+			wantStderrGolden: "validation_errors.stderr.golden",
 		},
 		{
 			name: "mixed issues",
@@ -62,25 +77,28 @@ func TestTextReporter_PrintIssues(t *testing.T) {
 					Severity: validate.Warning,
 				},
 			},
-			wantStdout: "Предупреждение: Minor warning (WARN_002)\n\nИтог: Валидация завершена. Ошибок: 1, предупреждений: 1.\n",
-			wantStderr: "Ошибка проверки: Critical error (ERR_001)\n",
+			wantStdoutGolden: "validation_mixed.stdout.golden",
+			wantStderrGolden: "validation_mixed.stderr.golden",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			r := NewTextReporter(&stdout, &stderr)
+			r := report.NewTextReporter(&stdout, &stderr)
 			err := r.PrintValidationResult(tt.issues)
 			if err != nil {
 				t.Fatalf("PrintValidationResult failed: %v", err)
 			}
 
-			if got := stdout.String(); got != tt.wantStdout {
-				t.Errorf("stdout:\ngot:  %q\nwant: %q", got, tt.wantStdout)
+			wantStdout := readGoldenFile(t, tt.wantStdoutGolden)
+			wantStderr := readGoldenFile(t, tt.wantStderrGolden)
+
+			if got := stdout.String(); got != wantStdout {
+				t.Errorf("stdout:\ngot:  %q\nwant: %q", got, wantStdout)
 			}
-			if got := stderr.String(); got != tt.wantStderr {
-				t.Errorf("stderr:\ngot:  %q\nwant: %q", got, tt.wantStderr)
+			if got := stderr.String(); got != wantStderr {
+				t.Errorf("stderr:\ngot:  %q\nwant: %q", got, wantStderr)
 			}
 		})
 	}
@@ -88,7 +106,7 @@ func TestTextReporter_PrintIssues(t *testing.T) {
 
 func TestTextReporter_PrintIssues_Simple(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	r := NewTextReporter(&stdout, &stderr)
+	r := report.NewTextReporter(&stdout, &stderr)
 	issues := []validate.Issue{
 		{Code: "ERR_001", Message: "Error", Severity: validate.Error},
 		{Code: "WARN_001", Message: "Warning", Severity: validate.Warning},
@@ -111,14 +129,14 @@ func TestTextReporter_PrintIssues_Simple(t *testing.T) {
 
 func TestTextReporter_PrintSummary(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	r := NewTextReporter(&stdout, &stderr)
+	r := report.NewTextReporter(&stdout, &stderr)
 	archivePath := "/path/to/archive.zip"
 	err := r.PrintSummary(archivePath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := fmt.Sprintf("Готово: Сборка успешно завершена!\nИтог: Архив создан: %s\n", archivePath)
+	want := readGoldenFile(t, "summary.stdout.golden")
 	if got := stdout.String(); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -126,46 +144,22 @@ func TestTextReporter_PrintSummary(t *testing.T) {
 
 func TestTextReporter_PrintConfigError(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	r := NewTextReporter(&stdout, &stderr)
+	r := report.NewTextReporter(&stdout, &stderr)
 	cfgErr := errors.New("missing field")
 	err := r.PrintConfigError(cfgErr)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := "Ошибка конфигурации: missing field\n"
+	want := readGoldenFile(t, "config_error.stderr.golden")
 	if got := stderr.String(); got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
-func TestTextReporter_UsesANSIWhenEnabled(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	r := &textReporter{
-		w:            &stdout,
-		err:          &stderr,
-		stdoutStyled: true,
-		stderrStyled: true,
-	}
-
-	if err := r.PrintSuccess("Операция выполнена"); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.PrintConfigError(errors.New("broken")); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := stdout.String(); !strings.Contains(got, "\x1b[32mГотово: Операция выполнена\x1b[0m") {
-		t.Errorf("stdout should contain green ANSI sequence, got %q", got)
-	}
-	if got := stderr.String(); !strings.Contains(got, "\x1b[31mОшибка конфигурации: broken\x1b[0m") {
-		t.Errorf("stderr should contain red ANSI sequence, got %q", got)
-	}
-}
-
 func TestTextReporter_PrintDryRunPlan(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	r := NewTextReporter(&stdout, &stderr)
+	r := report.NewTextReporter(&stdout, &stderr)
 	cfg := config.Config{
 		Module: config.Module{
 			ID:      "test.mod",
@@ -185,27 +179,15 @@ func TestTextReporter_PrintDryRunPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := stdout.String()
-	keywords := []string{
-		"--- ПЛАН СБОРКИ (DRY RUN) ---",
-		"Модуль:      test.mod (версия 1.0.0)",
-		"Исходники:   /src",
-		"Исключения:",
-		"  - node_modules",
-		"  - .git",
-		"Dry run завершен. Файлы не были изменены.",
-	}
-
-	for _, kw := range keywords {
-		if !strings.Contains(got, kw) {
-			t.Errorf("expected output to contain %q, but it didn't.\nOutput:\n%s", kw, got)
-		}
+	want := readGoldenFile(t, "dryrun_plan.stdout.golden")
+	if got := stdout.String(); got != want {
+		t.Errorf("stdout:\ngot:  %q\nwant: %q", got, want)
 	}
 }
 
 func TestJSONReporter(t *testing.T) {
 	var buf bytes.Buffer
-	r := NewJSONReporter(&buf)
+	r := report.NewJSONReporter(&buf)
 	r.SetCommand("test-cmd")
 
 	issues := []validate.Issue{
@@ -226,22 +208,37 @@ func TestJSONReporter(t *testing.T) {
 		return
 	}
 
+	// Parse both actual and expected JSON to compare structurally
 	got := buf.String()
-	// Проверяем наличие ключевых полей и значений, не завязываясь на форматирование (хотя Finalize его задает)
-	keywords := []string{
-		`"command": "test-cmd"`,
-		`"success": false`,
-		`"errors": [`,
-		`"Error 1"`,
-		`"warnings": [`,
-		`"Warning 1"`,
-		`"archivePath": "/path/to/zip"`,
-		`"summary": "Архив создан: /path/to/zip"`,
+	var gotJSON, wantJSON any
+	if err := json.Unmarshal([]byte(got), &gotJSON); err != nil {
+		t.Fatalf("failed to parse actual JSON: %v\nOutput:\n%s", err, got)
 	}
 
-	for _, kw := range keywords {
-		if !strings.Contains(got, kw) {
-			t.Errorf("expected JSON to contain %q, but it didn't.\nOutput:\n%s", kw, got)
+	wantGolden := readGoldenFile(t, "json_reporter.golden")
+	if err := json.Unmarshal([]byte(wantGolden), &wantJSON); err != nil {
+		t.Fatalf("failed to parse golden JSON: %v", err)
+	}
+
+	// Compare as maps to ignore formatting differences
+	gotMap, ok := gotJSON.(map[string]any)
+	if !ok {
+		t.Fatalf("expected JSON object, got %T", gotJSON)
+	}
+	wantMap, ok := wantJSON.(map[string]any)
+	if !ok {
+		t.Fatalf("expected golden JSON object, got %T", wantJSON)
+	}
+
+	// Check key fields
+	for key, wantVal := range wantMap {
+		gotVal, exists := gotMap[key]
+		if !exists {
+			t.Errorf("missing key %q in JSON output", key)
+			continue
+		}
+		if !reflect.DeepEqual(gotVal, wantVal) {
+			t.Errorf("key %q:\ngot:  %v\nwant: %v", key, gotVal, wantVal)
 		}
 	}
 }

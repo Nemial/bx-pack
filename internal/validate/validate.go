@@ -85,35 +85,7 @@ func (i Issue) String() string {
 type Validator func(cfg config.Config) []Issue
 
 func Run(cfg config.Config) []Issue {
-	// Нормализация путей перед валидацией, если возможно
-	_ = cfg.NormalizePaths()
-
-	issues := ResolveAndValidateVersion(&cfg)
-
-	validators := []Validator{
-		ValidateModuleID,
-		ValidateModuleVersionScheme,
-		ValidateModuleName,
-		ValidateModuleInstall,
-		ValidateInstallVersionFile,
-		ValidateInstallIndexFile,
-		ValidateInstallLangFile,
-		ValidateInstallIndexModuleID,
-		ValidateInstallVersionDate,
-		ValidateBuildSourceDir,
-		ValidateBuildOutputDir,
-		ValidateBuildStagingDir,
-		ValidateBuildArchiveName,
-		ValidateExcludePatterns,
-		ValidateForbiddenPaths,
-	}
-
-	allIssues := make([]Issue, 0, len(issues)+len(validators))
-	allIssues = append(allIssues, issues...)
-	for _, v := range validators {
-		allIssues = append(allIssues, v(cfg)...)
-	}
-	return allIssues
+	return RunWithResolvedVersion(&cfg)
 }
 
 func RunWithResolvedVersion(cfg *config.Config) []Issue {

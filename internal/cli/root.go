@@ -15,6 +15,18 @@ const (
 	ansiReset = "\x1b[0m"
 )
 
+var (
+	buildVersion = "dev"
+	buildCommit  = "none"
+	buildDate    = "unknown"
+)
+
+func SetBuildInfo(v, c, d string) {
+	buildVersion = v
+	buildCommit = c
+	buildDate = d
+}
+
 func Run(args []string) int {
 	rootCmd := NewRootCmd()
 	rootCmd.SetArgs(args)
@@ -49,9 +61,10 @@ func NewRootCmd() *cobra.Command {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "bx-pack",
-		Short: "bx-pack — инструмент для сборки модулей Bitrix",
-		Long:  "bx-pack — CLI для проверки, подготовки и упаковки Bitrix-модулей.",
+		Use:     "bx-pack",
+		Short:   "bx-pack — инструмент для сборки модулей Bitrix",
+		Long:    "bx-pack — CLI для проверки, подготовки и упаковки Bitrix-модулей.",
+		Version: fmt.Sprintf("%s (commit: %s, built: %s)", buildVersion, buildCommit, buildDate),
 		Example: strings.TrimSpace(`
 bx-pack init
 bx-pack scaffold
