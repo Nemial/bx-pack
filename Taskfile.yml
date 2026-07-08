@@ -82,7 +82,7 @@ tasks:
             - goreleaser release --snapshot --clean
 
     release:tag:
-        desc: 'Прогнать проверки, создать и запушить тег релиза (VERSION=v1.0.1 task release:tag)'
+        desc: 'Прогнать проверки, запушить коммиты и создать/запушить тег релиза (VERSION=v1.0.1 task release:tag)'
         preconditions:
             - sh: '[ -n "{{.VERSION}}" ]'
               msg: 'Укажи версию: task release:tag VERSION=v1.0.1'
@@ -90,6 +90,7 @@ tasks:
               msg: 'В рабочем дереве есть незакоммиченные изменения'
         cmds:
             - task: check
+            - git push
             - git tag -a {{.VERSION}} -m "Release {{.VERSION}}"
             - git push origin {{.VERSION}}
-            - 'echo "Тег {{.VERSION}} запушен — CI запустит goreleaser"'
+            - 'echo "Коммиты и тег {{.VERSION}} запушены — CI запустит goreleaser"'
