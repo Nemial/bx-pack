@@ -10,8 +10,8 @@ import (
 	"text/template"
 	"time"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/report"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

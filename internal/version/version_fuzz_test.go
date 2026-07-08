@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"bx-pack/internal/version"
+	"github.com/Nemial/bx-pack/internal/version"
 )
 
 func FuzzParseVersion(f *testing.F) {

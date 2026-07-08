@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/config"
 	"gopkg.in/yaml.v3"
 )
 

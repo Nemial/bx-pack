@@ -1,4 +1,4 @@
-module bx-pack
+module github.com/Nemial/bx-pack
 
 go 1.26.3
 

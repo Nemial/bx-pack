@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/report"
 
 	"github.com/spf13/cobra"
 )

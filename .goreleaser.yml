@@ -8,9 +8,9 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X bx-pack/internal/cli.buildVersion={{.Version}}
-      - -X bx-pack/internal/cli.buildCommit={{.Commit}}
-      - -X bx-pack/internal/cli.buildDate={{.Date}}
+      - -X github.com/Nemial/bx-pack/internal/cli.buildVersion={{.Version}}
+      - -X github.com/Nemial/bx-pack/internal/cli.buildCommit={{.Commit}}
+      - -X github.com/Nemial/bx-pack/internal/cli.buildDate={{.Date}}
     goos:
       - linux
       - darwin

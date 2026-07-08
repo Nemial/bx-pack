@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/pack"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/pack"
 )
 
 func TestBuildPipeline(t *testing.T) {

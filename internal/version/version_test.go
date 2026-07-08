@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"bx-pack/internal/version"
+	"github.com/Nemial/bx-pack/internal/version"
 )
 
 func TestParseVersion(t *testing.T) {

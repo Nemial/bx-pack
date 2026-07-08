@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
-	"bx-pack/internal/validate"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/validate"
 )
 
 // readGoldenFile reads a golden file from testdata directory

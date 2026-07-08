@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/config"
 )
 
 type archiveFormat string

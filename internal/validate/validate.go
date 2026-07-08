@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/pack"
-	"bx-pack/internal/version"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/pack"
+	"github.com/Nemial/bx-pack/internal/version"
 )
 
 var (

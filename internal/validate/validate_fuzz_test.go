@@ -3,7 +3,7 @@ package validate
 import (
 	"testing"
 
-	"bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/config"
 )
 
 func FuzzValidateModuleID(f *testing.F) {

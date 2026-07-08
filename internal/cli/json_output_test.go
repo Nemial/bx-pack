@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/report"
 )
 
 func setupTestProject(t *testing.T) string {

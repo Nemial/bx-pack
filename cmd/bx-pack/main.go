@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bx-pack/internal/cli"
+	"github.com/Nemial/bx-pack/internal/cli"
 
 	"os"
 )

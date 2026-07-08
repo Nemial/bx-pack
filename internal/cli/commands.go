@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/pack"
-	"bx-pack/internal/report"
-	"bx-pack/internal/scaffold"
-	"bx-pack/internal/validate"
-	"bx-pack/internal/version"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/pack"
+	"github.com/Nemial/bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/scaffold"
+	"github.com/Nemial/bx-pack/internal/validate"
+	"github.com/Nemial/bx-pack/internal/version"
 )
 
 func Init(reporter report.InitReporter) error {

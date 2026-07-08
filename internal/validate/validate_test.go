@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/config"
 )
 
 func writeValidInstallFixture(t *testing.T, rootDir, moduleID, version string) {

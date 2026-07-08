@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/report"
 )
 
 func writeValidModuleFixture(t *testing.T, moduleID, version string) {

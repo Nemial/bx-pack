@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"bx-pack/internal/config"
-	"bx-pack/internal/validate"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/validate"
 )
 
 type Format string

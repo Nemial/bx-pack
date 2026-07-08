@@ -3,7 +3,7 @@ package pack_test
 import (
 	"testing"
 
-	"bx-pack/internal/pack"
+	"github.com/Nemial/bx-pack/internal/pack"
 )
 
 func FuzzIsExcluded(f *testing.F) {

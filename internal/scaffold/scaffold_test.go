@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"bx-pack/internal/cli"
-	"bx-pack/internal/config"
-	"bx-pack/internal/report"
+	"github.com/Nemial/bx-pack/internal/cli"
+	"github.com/Nemial/bx-pack/internal/config"
+	"github.com/Nemial/bx-pack/internal/report"
 )
 
 func TestScaffold_Integration(t *testing.T) {
